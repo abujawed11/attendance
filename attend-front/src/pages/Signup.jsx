@@ -387,6 +387,7 @@
 
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_ENDPOINTS } from "../config/api";
 
 /* -------------------- enums (match Prisma) -------------------- */
 const RoleType = {
@@ -773,7 +774,7 @@ export default function Signup() {
       console.log("Signup payload →", payload);
 
       // Call backend API to send OTP
-      const res = await fetch("http://localhost:5000/api/auth/signup", {
+      const res = await fetch(API_ENDPOINTS.SIGNUP, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -812,7 +813,7 @@ export default function Signup() {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch("http://localhost:5000/api/auth/verify-otp", {
+      const res = await fetch(API_ENDPOINTS.VERIFY_OTP, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -850,7 +851,7 @@ export default function Signup() {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch("http://localhost:5000/api/auth/resend-otp", {
+      const res = await fetch(API_ENDPOINTS.RESEND_OTP, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: formData.email }),
