@@ -104,9 +104,9 @@ model StudentSchoolProfile {
 
   institutionType InstitutionType @default(SCHOOL)
   schoolName String
-  board      String?   // CBSE/ICSE/State board if you want to store
+  board      String    // CBSE/ICSE/State board - now required
   class      String    // e.g., "10"
-  section    String?   // e.g., "A"
+  section    String    // e.g., "A" - now required
   rollNo     String
   dob        DateTime
 }
@@ -118,8 +118,8 @@ model StudentCollegeProfile {
   institutionType InstitutionType @default(COLLEGE)
   collegeName  String
   department   String
-  yearOfStudy  Int        // 1..4
-  semester     Int?       // 1..8
+  yearOfStudy  Int        // 1..8
+  semester     Int        // 1..16 - now required
   regNo        String     // roll/registration no
 }
 
@@ -131,7 +131,8 @@ model FacultySchoolProfile {
 
   institutionType InstitutionType @default(SCHOOL)
   schoolName String
-  subject    String
+  department String              // English, Physics, Mathematics, etc.
+  employeeId String
 }
 
 model FacultyCollegeProfile {
@@ -140,7 +141,9 @@ model FacultyCollegeProfile {
 
   institutionType InstitutionType @default(COLLEGE)
   collegeName String
-  department String
+  department  String              // CSE, Mechanical, Civil, etc.
+  designation String              // Professor, Assistant Professor, Lecturer, etc.
+  employeeId  String
 }
 
 /* ===================== Profiles: Parent & Linking ===================== */
@@ -183,4 +186,16 @@ model AdminProfile {
   department      String?          // if college admin
 }
 
+/* ===================== OTP/Verification ===================== */
 
+model OTP {
+  id        Int      @id @default(autoincrement())
+  email     String
+  otp       String   @db.VarChar(6)
+  purpose   String   @default("signup") // signup, reset-password, etc.
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email, purpose])
+}

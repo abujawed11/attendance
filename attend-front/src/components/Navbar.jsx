@@ -1,12 +1,21 @@
 import { useState } from "react";
-import { NavLink, Link } from "react-router-dom";
+import { NavLink, Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const { isAuthenticated, user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const linkBase = "px-3 py-2 rounded-md text-sm font-medium";
   const linkClasses = ({ isActive }) =>
     `${linkBase} ${isActive ? "text-white bg-indigo-600" : "text-gray-700 hover:bg-indigo-50"}`;
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+    setOpen(false);
+  };
 
   return (
     <nav className="bg-white shadow-md">
@@ -19,7 +28,26 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-2">
           <NavLink to="/" className={linkClasses}>Home</NavLink>
           <NavLink to="/about" className={linkClasses}>About</NavLink>
-          <NavLink to="/signup" className={linkClasses}>Signup</NavLink>
+
+          {isAuthenticated ? (
+            <>
+              <NavLink to="/dashboard" className={linkClasses}>Dashboard</NavLink>
+              <div className="flex items-center gap-2 ml-2">
+                <span className="text-sm text-gray-600">Hi, {user?.fullName?.split(' ')[0]}</span>
+                <button
+                  onClick={handleLogout}
+                  className="px-3 py-2 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700"
+                >
+                  Logout
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <NavLink to="/login" className={linkClasses}>Login</NavLink>
+              <NavLink to="/signup" className={linkClasses}>Signup</NavLink>
+            </>
+          )}
         </div>
 
         {/* Mobile button */}
@@ -43,10 +71,29 @@ export default function Navbar() {
 
       {/* Mobile Menu */}
       {open && (
-        <div className="md:hidden bg-white border-t border-gray-200 py-2">
+        <div className="md:hidden bg-white border-t border-gray-200 py-2 flex flex-col">
           <NavLink to="/" className={linkClasses} onClick={() => setOpen(false)}>Home</NavLink>
           <NavLink to="/about" className={linkClasses} onClick={() => setOpen(false)}>About</NavLink>
-          <NavLink to="/signup" className={linkClasses} onClick={() => setOpen(false)}>Signup</NavLink>
+
+          {isAuthenticated ? (
+            <>
+              <NavLink to="/dashboard" className={linkClasses} onClick={() => setOpen(false)}>Dashboard</NavLink>
+              <div className="px-3 py-2 text-sm text-gray-600">
+                Hi, {user?.fullName?.split(' ')[0]}
+              </div>
+              <button
+                onClick={handleLogout}
+                className="mx-3 my-2 px-3 py-2 rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <NavLink to="/login" className={linkClasses} onClick={() => setOpen(false)}>Login</NavLink>
+              <NavLink to="/signup" className={linkClasses} onClick={() => setOpen(false)}>Signup</NavLink>
+            </>
+          )}
         </div>
       )}
     </nav>

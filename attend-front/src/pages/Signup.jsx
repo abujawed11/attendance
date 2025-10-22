@@ -386,6 +386,7 @@
 
 
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 /* -------------------- enums (match Prisma) -------------------- */
 const RoleType = {
@@ -401,111 +402,150 @@ const InstitutionType = {
 };
 
 /* -------------------- validation functions -------------------- */
-function validateBase(values) {
+function validateBase(values, roleType) {
   const errors = {};
-  
+
   if (!values.fullName || values.fullName.length < 2) {
     errors.fullName = "Enter your full name";
   }
-  
+
   if (!values.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
     errors.email = "Enter a valid email";
   }
-  
+
   if (!values.password || values.password.length < 8) {
     errors.password = "At least 8 characters";
   } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(values.password)) {
     errors.password = "Include upper, lower & a number";
   }
-  
+
   if (!values.confirmPassword || values.confirmPassword.length < 8) {
     errors.confirmPassword = "Confirm your password";
   } else if (values.password !== values.confirmPassword) {
     errors.confirmPassword = "Passwords do not match";
   }
-  
-  if (!values.inviteCode || values.inviteCode.length < 3) {
-    errors.inviteCode = "Invite code is required";
+
+  // Invite code not required for parents
+  if (roleType !== RoleType.PARENT) {
+    if (!values.inviteCode || values.inviteCode.length < 3) {
+      errors.inviteCode = "Invite code is required";
+    }
   }
-  
+
   return errors;
 }
 
 function validateStudentSchool(values) {
   const errors = {};
-  
+
   if (!values.schoolName || values.schoolName.length < 2) {
     errors.schoolName = "Enter school name";
   }
-  
+
+  if (!values.phone || values.phone.length < 10) {
+    errors.phone = "Enter valid phone number";
+  }
+
+  if (!values.board || values.board.length < 2) {
+    errors.board = "Enter board";
+  }
+
   if (!values.className || values.className.length < 1) {
     errors.className = "Enter class";
   }
-  
+
+  if (!values.section || values.section.length < 1) {
+    errors.section = "Enter section";
+  }
+
   if (!values.rollNo || values.rollNo.length < 1) {
     errors.rollNo = "Enter roll no";
   }
-  
+
   if (!values.dob || values.dob.length < 1) {
     errors.dob = "Select DOB";
   }
-  
+
   return errors;
 }
 
 function validateStudentCollege(values) {
   const errors = {};
-  
+
   if (!values.collegeName || values.collegeName.length < 2) {
     errors.collegeName = "Enter college name";
   }
-  
+
+  if (!values.phone || values.phone.length < 10) {
+    errors.phone = "Enter valid phone number";
+  }
+
   if (!values.department || values.department.length < 2) {
     errors.department = "Enter department";
   }
-  
+
   if (!values.yearOfStudy || values.yearOfStudy < 1 || values.yearOfStudy > 8) {
     errors.yearOfStudy = "Enter valid year (1-8)";
   }
-  
+
+  if (!values.semester || values.semester < 1 || values.semester > 16) {
+    errors.semester = "Enter valid semester";
+  }
+
   if (!values.regNo || values.regNo.length < 1) {
     errors.regNo = "Enter registration/roll no";
   }
-  
+
   return errors;
 }
 
 function validateFacultySchool(values) {
   const errors = {};
-  
+
   if (!values.schoolName || values.schoolName.length < 2) {
     errors.schoolName = "Enter school name";
   }
-  
-  if (!values.subject || values.subject.length < 2) {
-    errors.subject = "Enter subject";
+
+  if (!values.phone || values.phone.length < 10) {
+    errors.phone = "Enter valid phone number";
   }
-  
+
+  if (!values.department || values.department.length < 2) {
+    errors.department = "Select department";
+  }
+
+  if (!values.employeeId || values.employeeId.length < 1) {
+    errors.employeeId = "Enter employee ID";
+  }
+
   return errors;
 }
 
 function validateFacultyCollege(values) {
   const errors = {};
-  
+
   if (!values.collegeName || values.collegeName.length < 2) {
     errors.collegeName = "Enter college name";
   }
-  
+
   if (!values.department || values.department.length < 2) {
-    errors.department = "Enter department";
+    errors.department = "Select department";
   }
-  
+
+  if (!values.designation || values.designation.length < 2) {
+    errors.designation = "Select designation";
+  }
+
+  if (!values.employeeId || values.employeeId.length < 1) {
+    errors.employeeId = "Enter employee ID";
+  }
+
   return errors;
 }
 
 function validateForm(values, roleType, institutionType) {
-  let errors = validateBase(values);
-  
+  let errors = validateBase(values, roleType);
+
   if (roleType === RoleType.STUDENT) {
     if (institutionType === InstitutionType.SCHOOL) {
       errors = { ...errors, ...validateStudentSchool(values) };
@@ -519,7 +559,7 @@ function validateForm(values, roleType, institutionType) {
       errors = { ...errors, ...validateFacultyCollege(values) };
     }
   }
-  
+
   return errors;
 }
 
@@ -579,12 +619,21 @@ function buildPayload(values) {
     if (institutionType === InstitutionType.SCHOOL) {
       payload.profile = {
         kind: "facultySchool",
-        data: { schoolName, subject },
+        data: {
+          schoolName,
+          department,
+          employeeId,
+        },
       };
     } else {
       payload.profile = {
         kind: "facultyCollege",
-        data: { collegeName, department },
+        data: {
+          collegeName,
+          department,
+          designation,
+          employeeId,
+        },
       };
     }
   } else if (roleType === RoleType.PARENT) {
@@ -615,10 +664,17 @@ function buildPayload(values) {
 
 /* -------------------- component -------------------- */
 export default function Signup() {
+  const navigate = useNavigate();
   const [roleType, setRoleType] = useState(RoleType.STUDENT);
   const [institutionType, setInstitutionType] = useState(InstitutionType.SCHOOL);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // OTP verification state
+  const [step, setStep] = useState(1); // 1: signup form, 2: OTP verification
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [signupPayload, setSignupPayload] = useState(null);
   
   const [formData, setFormData] = useState({
     fullName: "",
@@ -641,12 +697,13 @@ export default function Signup() {
     semester: "",
     regNo: "",
     subject: "",
+    employeeId: "",
+    designation: "",
     studentName: "",
     studentClass: "",
     studentRollNo: "",
     studentDob: "",
     institutionName: "",
-    designation: "",
   });
 
   const handleChange = (e) => {
@@ -697,32 +754,116 @@ export default function Signup() {
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    
+
     const validationErrors = validateForm(formData, roleType, institutionType);
-    
+
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
-    
+
     setIsSubmitting(true);
-    
+
     try {
       const payload = buildPayload(formData);
       console.log("Signup payload →", payload);
 
-      // TODO: call your backend
-      // const res = await fetch("/api/auth/signup", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify(payload),
-      // });
-      // const data = await res.json();
-      // handle errors/success…
+      // Call backend API to send OTP
+      const res = await fetch("http://localhost:5000/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-      alert("Submitted (mock). Check console for payload.");
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setErrors({ submit: data.message || "Failed to send OTP" });
+        alert(data.message || "Failed to send OTP");
+        return;
+      }
+
+      // OTP sent successfully
+      setSignupPayload(payload);
+      setOtpSent(true);
+      setStep(2);
+      alert(`OTP sent to ${formData.email}. Please check your email.`);
     } catch (error) {
       console.error("Submission error:", error);
+      setErrors({ submit: "Failed to connect to server" });
+      alert("Failed to connect to server. Make sure the backend is running on port 5000.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const onVerifyOTP = async (e) => {
+    e.preventDefault();
+
+    if (!otp || otp.length !== 6) {
+      setErrors({ otp: "Please enter 6-digit OTP" });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const res = await fetch("http://localhost:5000/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email,
+          otp,
+          ...signupPayload,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setErrors({ otp: data.message || "Invalid OTP" });
+        alert(data.message || "Invalid OTP");
+        return;
+      }
+
+      // Account created successfully
+      alert("Account created successfully! Please login with your credentials.");
+      console.log("User created:", data.data.user);
+      console.log("JWT Token:", data.data.token);
+
+      // Redirect to login page
+      navigate('/login');
+    } catch (error) {
+      console.error("OTP verification error:", error);
+      setErrors({ otp: "Failed to verify OTP" });
+      alert("Failed to verify OTP");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const onResendOTP = async () => {
+    setIsSubmitting(true);
+
+    try {
+      const res = await fetch("http://localhost:5000/api/auth/resend-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: formData.email }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        alert(data.message || "Failed to resend OTP");
+        return;
+      }
+
+      alert("OTP resent to your email");
+      setOtp("");
+    } catch (error) {
+      console.error("Resend OTP error:", error);
+      alert("Failed to resend OTP");
     } finally {
       setIsSubmitting(false);
     }
@@ -732,13 +873,75 @@ export default function Signup() {
     <p className="text-sm text-red-600 mt-1">{errors[name]}</p>
   );
 
+  // OTP Verification Step
+  if (step === 2) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-gray-50 px-4 py-8">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">
+          <h1 className="text-2xl font-semibold text-center mb-2">Verify Your Email</h1>
+          <p className="text-sm text-gray-500 text-center mb-6">
+            We've sent a 6-digit OTP to <strong>{formData.email}</strong>
+          </p>
+
+          <form onSubmit={onVerifyOTP} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Enter OTP</label>
+              <input
+                type="text"
+                maxLength="6"
+                value={otp}
+                onChange={(e) => {
+                  setOtp(e.target.value.replace(/\D/g, ""));
+                  setErrors({});
+                }}
+                placeholder="123456"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-center text-2xl font-bold tracking-widest focus:ring-2 focus:ring-indigo-500"
+              />
+              <E name="otp" />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting || otp.length !== 6}
+              className="w-full rounded-lg bg-indigo-600 text-white py-2 font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+            >
+              {isSubmitting ? "Verifying..." : "Verify OTP"}
+            </button>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={onResendOTP}
+                disabled={isSubmitting}
+                className="text-sm text-indigo-600 hover:underline disabled:opacity-60"
+              >
+                Resend OTP
+              </button>
+            </div>
+
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="text-sm text-gray-600 hover:underline"
+              >
+                Back to signup form
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Signup Form (Step 1)
   return (
     <div className="min-h-screen grid place-items-center bg-gray-50 px-4 py-8">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow p-6">
         <h1 className="text-2xl font-semibold text-center mb-2">Create your account</h1>
         <p className="text-sm text-gray-500 text-center mb-6">Sign up with role-specific details</p>
 
-        <div className="space-y-4">
+        <form onSubmit={onSubmit} className="space-y-4">
           {/* Role */}
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
@@ -799,30 +1002,34 @@ export default function Signup() {
             </div>
           </div>
 
-          {/* Invite */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Invite Code</label>
-            <input
-              name="inviteCode"
-              value={formData.inviteCode}
-              onChange={handleChange}
-              placeholder="e.g., ABC123"
-              className="mt-1 w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-            />
-            <E name="inviteCode" />
-          </div>
+          {/* Invite - not required for parents */}
+          {roleType !== RoleType.PARENT && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Invite Code</label>
+              <input
+                name="inviteCode"
+                value={formData.inviteCode}
+                onChange={handleChange}
+                placeholder="e.g., ABC123"
+                className="mt-1 w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+              />
+              <E name="inviteCode" />
+            </div>
+          )}
 
-          {/* Phone */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Phone (optional)</label>
-            <input
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              className="mt-1 w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-            />
-            <E name="phone" />
-          </div>
+          {/* Phone - only show in general section if NOT Student or Faculty School (they have it in role-specific section) */}
+          {!(roleType === RoleType.STUDENT || (roleType === RoleType.FACULTY && institutionType === InstitutionType.SCHOOL)) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Phone (optional)</label>
+              <input
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                className="mt-1 w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+              />
+              <E name="phone" />
+            </div>
+          )}
 
           {/* ===================== Role-specific fields ===================== */}
           {roleType === RoleType.STUDENT && (
@@ -840,11 +1047,23 @@ export default function Signup() {
                     <E name="schoolName" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Board (optional)</label>
+                    <label className="block text-sm font-medium text-gray-700">Phone</label>
+                    <input
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      placeholder="10-digit phone number"
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
+                    <E name="phone" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Board</label>
                     <input
                       name="board"
                       value={formData.board}
                       onChange={handleChange}
+                      placeholder="e.g., CBSE, ICSE, State Board"
                       className="mt-1 w-full rounded-lg border px-3 py-2"
                     />
                     <E name="board" />
@@ -861,7 +1080,7 @@ export default function Signup() {
                     <E name="className" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Section (optional)</label>
+                    <label className="block text-sm font-medium text-gray-700">Section</label>
                     <input
                       name="section"
                       value={formData.section}
@@ -906,6 +1125,17 @@ export default function Signup() {
                     <E name="collegeName" />
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700">Phone</label>
+                    <input
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      placeholder="10-digit phone number"
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
+                    <E name="phone" />
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700">Department</label>
                     <input
                       name="department"
@@ -927,7 +1157,7 @@ export default function Signup() {
                     <E name="yearOfStudy" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Semester (optional)</label>
+                    <label className="block text-sm font-medium text-gray-700">Semester</label>
                     <input
                       type="number"
                       name="semester"
@@ -967,14 +1197,47 @@ export default function Signup() {
                     <E name="schoolName" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Subject</label>
+                    <label className="block text-sm font-medium text-gray-700">Phone</label>
                     <input
-                      name="subject"
-                      value={formData.subject}
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      placeholder="10-digit phone number"
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
+                    <E name="phone" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Department</label>
+                    <select
+                      name="department"
+                      value={formData.department}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Select Department</option>
+                      <option value="English">English</option>
+                      <option value="Physics">Physics</option>
+                      <option value="Chemistry">Chemistry</option>
+                      <option value="Mathematics">Mathematics</option>
+                      <option value="Biology">Biology</option>
+                      <option value="History">History</option>
+                      <option value="Geography">Geography</option>
+                      <option value="Economics">Economics</option>
+                      <option value="Computer Science">Computer Science</option>
+                      <option value="Physical Education">Physical Education</option>
+                    </select>
+                    <E name="department" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Employee ID</label>
+                    <input
+                      name="employeeId"
+                      value={formData.employeeId}
                       onChange={handleChange}
                       className="mt-1 w-full rounded-lg border px-3 py-2"
                     />
-                    <E name="subject" />
+                    <E name="employeeId" />
                   </div>
                 </div>
               ) : (
@@ -991,13 +1254,54 @@ export default function Signup() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Department</label>
-                    <input
+                    <select
                       name="department"
                       value={formData.department}
                       onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Select Department</option>
+                      <option value="Computer Science Engineering">Computer Science Engineering (CSE)</option>
+                      <option value="Mechanical Engineering">Mechanical Engineering</option>
+                      <option value="Civil Engineering">Civil Engineering</option>
+                      <option value="Electrical Engineering">Electrical Engineering</option>
+                      <option value="Electronics and Communication">Electronics and Communication</option>
+                      <option value="Information Technology">Information Technology</option>
+                      <option value="Business Administration">Business Administration (BBA)</option>
+                      <option value="Commerce">Commerce</option>
+                      <option value="Arts">Arts</option>
+                      <option value="Science">Science</option>
+                    </select>
+                    <E name="department" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Designation</label>
+                    <select
+                      name="designation"
+                      value={formData.designation}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Select Designation</option>
+                      <option value="Professor">Professor</option>
+                      <option value="Associate Professor">Associate Professor</option>
+                      <option value="Assistant Professor">Assistant Professor</option>
+                      <option value="Lecturer">Lecturer</option>
+                      <option value="Senior Lecturer">Senior Lecturer</option>
+                      <option value="Guest Lecturer">Guest Lecturer</option>
+                      <option value="Teaching Assistant">Teaching Assistant</option>
+                    </select>
+                    <E name="designation" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Employee ID</label>
+                    <input
+                      name="employeeId"
+                      value={formData.employeeId}
+                      onChange={handleChange}
                       className="mt-1 w-full rounded-lg border px-3 py-2"
                     />
-                    <E name="department" />
+                    <E name="employeeId" />
                   </div>
                 </div>
               )}
@@ -1116,13 +1420,19 @@ export default function Signup() {
           {/* Submit */}
           <button
             disabled={isSubmitting}
-            type="button"
-            onClick={onSubmit}
+            type="submit"
             className="w-full rounded-lg bg-indigo-600 text-white py-2 font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
           >
-            {isSubmitting ? "Creating account…" : "Create account"}
+            {isSubmitting ? "Sending OTP..." : "Send OTP"}
           </button>
-        </div>
+
+          <p className="text-center text-sm text-gray-600">
+            Already have an account?{" "}
+            <a href="/login" className="text-indigo-600 font-medium hover:underline">
+              Log in
+            </a>
+          </p>
+        </form>
       </div>
     </div>
   );
