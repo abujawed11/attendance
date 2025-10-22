@@ -9,7 +9,8 @@
       "Bash(npm uninstall:*)",
       "Bash(node -e:*)",
       "Bash(npm run dev)",
-      "Bash(node scripts/create-test-invite.js:*)"
+      "Bash(node scripts/create-test-invite.js:*)",
+      "Bash(npx prisma generate:*)"
     ],
     "deny": [],
     "ask": []

@@ -528,6 +528,10 @@ function validateFacultyCollege(values) {
     errors.collegeName = "Enter college name";
   }
 
+  if (!values.phone || values.phone.length < 10) {
+    errors.phone = "Enter valid phone number";
+  }
+
   if (!values.department || values.department.length < 2) {
     errors.department = "Select department";
   }
@@ -1017,8 +1021,8 @@ export default function Signup() {
             </div>
           )}
 
-          {/* Phone - only show in general section if NOT Student or Faculty School (they have it in role-specific section) */}
-          {!(roleType === RoleType.STUDENT || (roleType === RoleType.FACULTY && institutionType === InstitutionType.SCHOOL)) && (
+          {/* Phone - only show in general section if NOT Student or Faculty (they have it in role-specific section) */}
+          {!(roleType === RoleType.STUDENT || roleType === RoleType.FACULTY) && (
             <div>
               <label className="block text-sm font-medium text-gray-700">Phone (optional)</label>
               <input
@@ -1137,12 +1141,24 @@ export default function Signup() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Department</label>
-                    <input
+                    <select
                       name="department"
                       value={formData.department}
                       onChange={handleChange}
-                      className="mt-1 w-full rounded-lg border px-3 py-2"
-                    />
+                      className="mt-1 w-full rounded-lg border px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Select Department</option>
+                      <option value="Computer Science Engineering">Computer Science Engineering (CSE)</option>
+                      <option value="Mechanical Engineering">Mechanical Engineering</option>
+                      <option value="Civil Engineering">Civil Engineering</option>
+                      <option value="Electrical Engineering">Electrical Engineering</option>
+                      <option value="Electronics and Communication">Electronics and Communication</option>
+                      <option value="Information Technology">Information Technology</option>
+                      <option value="Business Administration">Business Administration (BBA)</option>
+                      <option value="Commerce">Commerce</option>
+                      <option value="Arts">Arts</option>
+                      <option value="Science">Science</option>
+                    </select>
                     <E name="department" />
                   </div>
                   <div>
@@ -1251,6 +1267,17 @@ export default function Signup() {
                       className="mt-1 w-full rounded-lg border px-3 py-2"
                     />
                     <E name="collegeName" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Phone</label>
+                    <input
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      placeholder="10-digit phone number"
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
+                    <E name="phone" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Department</label>

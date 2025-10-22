@@ -32,6 +32,27 @@ async function signup(req, res) {
       });
     }
 
+    // Check for duplicate employee ID (for Faculty only)
+    if (user.roleType === 'FACULTY' && profile?.data?.employeeId) {
+      const employeeId = profile.data.employeeId;
+
+      // Check in both FacultySchoolProfile and FacultyCollegeProfile
+      const existingFacultySchool = await prisma.facultySchoolProfile.findFirst({
+        where: { employeeId },
+      });
+
+      const existingFacultyCollege = await prisma.facultyCollegeProfile.findFirst({
+        where: { employeeId },
+      });
+
+      if (existingFacultySchool || existingFacultyCollege) {
+        return res.status(400).json({
+          success: false,
+          message: 'Employee ID already exists',
+        });
+      }
+    }
+
     // Verify invite code (if required - not for parents)
     if (user.roleType !== 'PARENT') {
       if (!inviteCode) {

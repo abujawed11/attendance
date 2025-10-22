@@ -132,7 +132,9 @@ model FacultySchoolProfile {
   institutionType InstitutionType @default(SCHOOL)
   schoolName String
   department String              // English, Physics, Mathematics, etc.
-  employeeId String
+  employeeId String              @unique
+
+  @@index([employeeId])
 }
 
 model FacultyCollegeProfile {
@@ -143,7 +145,9 @@ model FacultyCollegeProfile {
   collegeName String
   department  String              // CSE, Mechanical, Civil, etc.
   designation String              // Professor, Assistant Professor, Lecturer, etc.
-  employeeId  String
+  employeeId  String              @unique
+
+  @@index([employeeId])
 }
 
 /* ===================== Profiles: Parent & Linking ===================== */
