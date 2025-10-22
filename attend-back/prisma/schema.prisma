@@ -1,0 +1,186 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/* ===================== Enums ===================== */
+
+enum InstitutionType {
+  SCHOOL
+  COLLEGE
+}
+
+enum RoleType {
+  STUDENT
+  FACULTY
+  PARENT
+  ADMIN
+}
+
+/* ===================== Infrastructure ===================== */
+
+/** For pretty IDs like USR000001 / INS000001 / INV000001 */
+model Sequence {
+  model String @id          // e.g., "user", "institution", "invite"
+  next  Int
+}
+
+/* ===================== Core ===================== */
+
+model Institution {
+  id         Int             @id @default(autoincrement())
+  publicId   String          @unique @db.VarChar(16) // INS000001
+  name       String
+  type       InstitutionType
+  board      String?                           // for schools (CBSE/ICSE/etc.)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  users      User[]
+  invites    Invite[]
+}
+
+model User {
+  id         Int        @id @default(autoincrement())
+  publicId   String     @unique @db.VarChar(16) // USR000001
+  email      String     @unique
+  fullName   String
+  password   String
+  roleType   RoleType
+  status     String     @default("active")
+  phone      String?    // useful for parents/faculty
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  institutionId Int?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+
+  // Role-specific profiles (0/1 each depending on roleType + institution type)
+  studentSchoolProfile  StudentSchoolProfile?
+  studentCollegeProfile StudentCollegeProfile?
+  facultySchoolProfile  FacultySchoolProfile?
+  facultyCollegeProfile FacultyCollegeProfile?
+  parentProfile         ParentProfile?
+  adminProfile          AdminProfile?
+
+  // Parent linking (many students per parent; many parents per student)
+  guardianships StudentGuardian[] @relation("ParentLinks")
+  wards         StudentGuardian[] @relation("StudentLinks")
+}
+
+/* ===================== Invites ===================== */
+
+model Invite {
+  id             Int       @id @default(autoincrement())
+  publicId       String    @unique @db.VarChar(16) // INV000001
+  code           String    @unique
+  institutionId  Int?
+  institution    Institution? @relation(fields: [institutionId], references: [id])
+  allowedRoles   String    // JSON string e.g. '["STUDENT","FACULTY"]'
+  allowedDomains String?   // JSON string e.g. '["school.edu"]'
+  maxUses        Int       @default(1)
+  usedCount      Int       @default(0)
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+/* ===================== Profiles: Students ===================== */
+
+model StudentSchoolProfile {
+  userId     Int     @id
+  user       User    @relation(fields: [userId], references: [id])
+
+  institutionType InstitutionType @default(SCHOOL)
+  schoolName String
+  board      String?   // CBSE/ICSE/State board if you want to store
+  class      String    // e.g., "10"
+  section    String?   // e.g., "A"
+  rollNo     String
+  dob        DateTime
+}
+
+model StudentCollegeProfile {
+  userId     Int     @id
+  user       User    @relation(fields: [userId], references: [id])
+
+  institutionType InstitutionType @default(COLLEGE)
+  collegeName  String
+  department   String
+  yearOfStudy  Int        // 1..4
+  semester     Int?       // 1..8
+  regNo        String     // roll/registration no
+}
+
+/* ===================== Profiles: Faculty ===================== */
+
+model FacultySchoolProfile {
+  userId     Int  @id
+  user       User @relation(fields: [userId], references: [id])
+
+  institutionType InstitutionType @default(SCHOOL)
+  schoolName String
+  subject    String
+}
+
+model FacultyCollegeProfile {
+  userId     Int  @id
+  user       User @relation(fields: [userId], references: [id])
+
+  institutionType InstitutionType @default(COLLEGE)
+  collegeName String
+  department String
+}
+
+/* ===================== Profiles: Parent & Linking ===================== */
+
+model ParentProfile {
+  userId   Int   @id
+  user     User  @relation(fields: [userId], references: [id])
+
+  // Parent phone we keep on User.phone too, but duplicating here is fine if needed
+  // Student link can be added via StudentGuardian (below).
+  // Provisional fields if student account not present yet:
+  provisionalStudentName   String?
+  provisionalStudentClass  String?
+  provisionalStudentRollNo String?
+  provisionalStudentDob    DateTime?
+}
+
+/** M2M: Parent ↔ Student */
+model StudentGuardian {
+  id            Int    @id @default(autoincrement())
+  parentUserId  Int
+  studentUserId Int
+  relation      String? // father/mother/guardian/etc.
+
+  parent  User @relation("ParentLinks",  fields: [parentUserId],  references: [id])
+  student User @relation("StudentLinks", fields: [studentUserId], references: [id])
+
+  @@unique([parentUserId, studentUserId])
+}
+
+/* ===================== Profiles: Admin ===================== */
+
+model AdminProfile {
+  userId      Int   @id
+  user        User  @relation(fields: [userId], references: [id])
+
+  institutionType InstitutionType? // optional if admin is global
+  institutionName String?
+  designation     String?          // Principal / Registrar / Dept Admin
+  department      String?          // if college admin
+}
+
+
