@@ -385,11 +385,7 @@
 
 
 
-
 import { useMemo, useState } from "react";
-import { useForm, Controller } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 
 /* -------------------- enums (match Prisma) -------------------- */
 const RoleType = {
@@ -404,105 +400,138 @@ const InstitutionType = {
   COLLEGE: "COLLEGE",
 };
 
-/* -------------------- schema per role -------------------- */
-const baseSchema = z.object({
-  fullName: z.string().min(2, "Enter your full name"),
-  email: z.string().email("Enter a valid email"),
-  password: z
-    .string()
-    .min(8, "At least 8 characters")
-    .regex(/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "Include upper, lower & a number"),
-  confirmPassword: z.string().min(8, "Confirm your password"),
-  roleType: z.nativeEnum(RoleType),
-  inviteCode: z.string().min(3, "Invite code is required"),
-  phone: z.string().optional(),
-}).refine((d) => d.password === d.confirmPassword, {
-  path: ["confirmPassword"],
-  message: "Passwords do not match",
-});
+/* -------------------- validation functions -------------------- */
+function validateBase(values) {
+  const errors = {};
+  
+  if (!values.fullName || values.fullName.length < 2) {
+    errors.fullName = "Enter your full name";
+  }
+  
+  if (!values.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
+    errors.email = "Enter a valid email";
+  }
+  
+  if (!values.password || values.password.length < 8) {
+    errors.password = "At least 8 characters";
+  } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(values.password)) {
+    errors.password = "Include upper, lower & a number";
+  }
+  
+  if (!values.confirmPassword || values.confirmPassword.length < 8) {
+    errors.confirmPassword = "Confirm your password";
+  } else if (values.password !== values.confirmPassword) {
+    errors.confirmPassword = "Passwords do not match";
+  }
+  
+  if (!values.inviteCode || values.inviteCode.length < 3) {
+    errors.inviteCode = "Invite code is required";
+  }
+  
+  return errors;
+}
 
-const studentSchoolSchema = z.object({
-  institutionType: z.literal(InstitutionType.SCHOOL),
-  schoolName: z.string().min(2, "Enter school name"),
-  board: z.string().optional(),
-  className: z.string().min(1, "Enter class"),
-  section: z.string().optional(),
-  rollNo: z.string().min(1, "Enter roll no"),
-  dob: z.string().min(1, "Select DOB"),
-});
+function validateStudentSchool(values) {
+  const errors = {};
+  
+  if (!values.schoolName || values.schoolName.length < 2) {
+    errors.schoolName = "Enter school name";
+  }
+  
+  if (!values.className || values.className.length < 1) {
+    errors.className = "Enter class";
+  }
+  
+  if (!values.rollNo || values.rollNo.length < 1) {
+    errors.rollNo = "Enter roll no";
+  }
+  
+  if (!values.dob || values.dob.length < 1) {
+    errors.dob = "Select DOB";
+  }
+  
+  return errors;
+}
 
-const studentCollegeSchema = z.object({
-  institutionType: z.literal(InstitutionType.COLLEGE),
-  collegeName: z.string().min(2, "Enter college name"),
-  department: z.string().min(2, "Enter department"),
-  yearOfStudy: z.coerce.number().int().min(1).max(8),
-  semester: z.coerce.number().int().min(1).max(12).optional(),
-  regNo: z.string().min(1, "Enter registration/roll no"),
-});
+function validateStudentCollege(values) {
+  const errors = {};
+  
+  if (!values.collegeName || values.collegeName.length < 2) {
+    errors.collegeName = "Enter college name";
+  }
+  
+  if (!values.department || values.department.length < 2) {
+    errors.department = "Enter department";
+  }
+  
+  if (!values.yearOfStudy || values.yearOfStudy < 1 || values.yearOfStudy > 8) {
+    errors.yearOfStudy = "Enter valid year (1-8)";
+  }
+  
+  if (!values.regNo || values.regNo.length < 1) {
+    errors.regNo = "Enter registration/roll no";
+  }
+  
+  return errors;
+}
 
-const facultySchoolSchema = z.object({
-  institutionType: z.literal(InstitutionType.SCHOOL),
-  schoolName: z.string().min(2, "Enter school name"),
-  subject: z.string().min(2, "Enter subject"),
-});
+function validateFacultySchool(values) {
+  const errors = {};
+  
+  if (!values.schoolName || values.schoolName.length < 2) {
+    errors.schoolName = "Enter school name";
+  }
+  
+  if (!values.subject || values.subject.length < 2) {
+    errors.subject = "Enter subject";
+  }
+  
+  return errors;
+}
 
-const facultyCollegeSchema = z.object({
-  institutionType: z.literal(InstitutionType.COLLEGE),
-  collegeName: z.string().min(2, "Enter college name"),
-  department: z.string().min(2, "Enter department"),
-});
+function validateFacultyCollege(values) {
+  const errors = {};
+  
+  if (!values.collegeName || values.collegeName.length < 2) {
+    errors.collegeName = "Enter college name";
+  }
+  
+  if (!values.department || values.department.length < 2) {
+    errors.department = "Enter department";
+  }
+  
+  return errors;
+}
 
-const parentSchema = z.object({
-  // no institutionType required here; optional fields below are provisional
-  studentName: z.string().optional(),
-  studentClass: z.string().optional(),
-  studentRollNo: z.string().optional(),
-  studentDob: z.string().optional(),
-  phone: z.string().min(7, "Enter phone").optional(),
-});
-
-const adminSchema = z.object({
-  institutionType: z.nativeEnum(InstitutionType).optional(),
-  institutionName: z.string().optional(),
-  designation: z.string().optional(),
-  department: z.string().optional(), // for college admins
-});
-
-/* -------------------- pick schema based on role/type -------------------- */
-function makeSchema(roleType, instType) {
+function validateForm(values, roleType, institutionType) {
+  let errors = validateBase(values);
+  
   if (roleType === RoleType.STUDENT) {
-    return baseSchema.and(
-      instType === InstitutionType.COLLEGE ? studentCollegeSchema : studentSchoolSchema
-    );
+    if (institutionType === InstitutionType.SCHOOL) {
+      errors = { ...errors, ...validateStudentSchool(values) };
+    } else {
+      errors = { ...errors, ...validateStudentCollege(values) };
+    }
+  } else if (roleType === RoleType.FACULTY) {
+    if (institutionType === InstitutionType.SCHOOL) {
+      errors = { ...errors, ...validateFacultySchool(values) };
+    } else {
+      errors = { ...errors, ...validateFacultyCollege(values) };
+    }
   }
-  if (roleType === RoleType.FACULTY) {
-    return baseSchema.and(
-      instType === InstitutionType.COLLEGE ? facultyCollegeSchema : facultySchoolSchema
-    );
-  }
-  if (roleType === RoleType.PARENT) {
-    return baseSchema.and(parentSchema);
-  }
-  if (roleType === RoleType.ADMIN) {
-    return baseSchema.and(adminSchema);
-  }
-  return baseSchema;
+  
+  return errors;
 }
 
 /* -------------------- helper: build API payload -------------------- */
 function buildPayload(values) {
   const {
     fullName, email, password, roleType, inviteCode, phone,
-    institutionType, // maybe undefined for Parent/Admin
-    // student (school)
+    institutionType,
     schoolName, board, className, section, rollNo, dob,
-    // student (college)
     collegeName, department, yearOfStudy, semester, regNo,
-    // faculty
     subject,
-    // parent provisional
     studentName, studentClass, studentRollNo, studentDob,
-    // admin
     institutionName, designation,
   } = values;
 
@@ -515,7 +544,6 @@ function buildPayload(values) {
       roleType,
       phone: phone || null,
     },
-    // optional top-level institution hint (you may link later on backend)
     institution: institutionType
       ? { type: institutionType, name: institutionName || schoolName || collegeName || null }
       : null,
@@ -532,7 +560,7 @@ function buildPayload(values) {
           class: className,
           section: section || null,
           rollNo,
-          dob, // backend: convert to Date
+          dob,
         },
       };
     } else {
@@ -589,75 +617,135 @@ function buildPayload(values) {
 export default function Signup() {
   const [roleType, setRoleType] = useState(RoleType.STUDENT);
   const [institutionType, setInstitutionType] = useState(InstitutionType.SCHOOL);
-
-  const schema = useMemo(() => makeSchema(roleType, institutionType), [roleType, institutionType]);
-
-  const {
-    register,
-    handleSubmit,
-    control,
-    formState: { errors, isSubmitting },
-    watch,
-    resetField,
-  } = useForm({
-    resolver: zodResolver(schema),
-    mode: "onChange",
-    defaultValues: {
-      roleType,
-      institutionType,
-    },
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
+  
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    roleType: RoleType.STUDENT,
+    inviteCode: "",
+    phone: "",
+    institutionType: InstitutionType.SCHOOL,
+    schoolName: "",
+    board: "",
+    className: "",
+    section: "",
+    rollNo: "",
+    dob: "",
+    collegeName: "",
+    department: "",
+    yearOfStudy: "",
+    semester: "",
+    regNo: "",
+    subject: "",
+    studentName: "",
+    studentClass: "",
+    studentRollNo: "",
+    studentDob: "",
+    institutionName: "",
+    designation: "",
   });
 
-  // keep RHF aware of role/type
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Clear error for this field
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+
   const onChangeRole = (e) => {
     const rt = e.target.value;
     setRoleType(rt);
+    setFormData(prev => ({ ...prev, roleType: rt }));
   };
+
   const onChangeInst = (e) => {
     const it = e.target.value;
     setInstitutionType(it);
-    // clear fields when switching
-    resetField("schoolName");
-    resetField("collegeName");
-    resetField("department");
-    resetField("subject");
+    
+    // Clear institution-specific fields when switching
+    setFormData(prev => ({
+      ...prev,
+      institutionType: it,
+      schoolName: "",
+      collegeName: "",
+      department: "",
+      subject: "",
+      board: "",
+      className: "",
+      section: "",
+      rollNo: "",
+      dob: "",
+      yearOfStudy: "",
+      semester: "",
+      regNo: "",
+    }));
+    
+    // Clear related errors
+    setErrors({});
   };
 
-  const onSubmit = async (values) => {
-    const payload = buildPayload(values);
-    console.log("Signup payload →", payload);
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    
+    const validationErrors = validateForm(formData, roleType, institutionType);
+    
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      const payload = buildPayload(formData);
+      console.log("Signup payload →", payload);
 
-    // TODO: call your backend
-    // const res = await fetch("/api/auth/signup", {
-    //   method: "POST",
-    //   headers: { "Content-Type": "application/json" },
-    //   body: JSON.stringify(payload),
-    // });
-    // const data = await res.json();
-    // handle errors/success…
+      // TODO: call your backend
+      // const res = await fetch("/api/auth/signup", {
+      //   method: "POST",
+      //   headers: { "Content-Type": "application/json" },
+      //   body: JSON.stringify(payload),
+      // });
+      // const data = await res.json();
+      // handle errors/success…
 
-    alert("Submitted (mock). Check console for payload.");
+      alert("Submitted (mock). Check console for payload.");
+    } catch (error) {
+      console.error("Submission error:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // convenience
-  const E = ({ name }) => errors?.[name]?.message && (
-    <p className="text-sm text-red-600 mt-1">{errors[name].message}</p>
+  const E = ({ name }) => errors?.[name] && (
+    <p className="text-sm text-red-600 mt-1">{errors[name]}</p>
   );
 
   return (
-    <div className="min-h-screen grid place-items-center bg-gray-50 px-4">
+    <div className="min-h-screen grid place-items-center bg-gray-50 px-4 py-8">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow p-6">
         <h1 className="text-2xl font-semibold text-center mb-2">Create your account</h1>
         <p className="text-sm text-gray-500 text-center mb-6">Sign up with role-specific details</p>
 
-        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+        <div className="space-y-4">
           {/* Role */}
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">I am a</label>
               <select
-                {...register("roleType")}
-                defaultValue={roleType}
+                name="roleType"
+                value={roleType}
                 onChange={onChangeRole}
                 className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
               >
@@ -669,13 +757,12 @@ export default function Signup() {
               <E name="roleType" />
             </div>
 
-            {/* Institution type (not needed for Parent usually, but allowed for Admin) */}
             {(roleType === RoleType.STUDENT || roleType === RoleType.FACULTY || roleType === RoleType.ADMIN) && (
               <div>
                 <label className="block text-sm font-medium text-gray-700">Institution Type</label>
                 <select
-                  {...register("institutionType")}
-                  defaultValue={institutionType}
+                  name="institutionType"
+                  value={institutionType}
                   onChange={onChangeInst}
                   className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
                 >
@@ -691,12 +778,23 @@ export default function Signup() {
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Full Name</label>
-              <input {...register("fullName")} className="mt-1 w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-indigo-500" />
+              <input
+                name="fullName"
+                value={formData.fullName}
+                onChange={handleChange}
+                className="mt-1 w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+              />
               <E name="fullName" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Email</label>
-              <input type="email" {...register("email")} className="mt-1 w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-indigo-500" />
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="mt-1 w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+              />
               <E name="email" />
             </div>
           </div>
@@ -704,50 +802,94 @@ export default function Signup() {
           {/* Invite */}
           <div>
             <label className="block text-sm font-medium text-gray-700">Invite Code</label>
-            <input {...register("inviteCode")} placeholder="e.g., ABC123" className="mt-1 w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-indigo-500" />
+            <input
+              name="inviteCode"
+              value={formData.inviteCode}
+              onChange={handleChange}
+              placeholder="e.g., ABC123"
+              className="mt-1 w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+            />
             <E name="inviteCode" />
           </div>
 
-          {/* Phone (useful for Parent; optional otherwise) */}
+          {/* Phone */}
           <div>
             <label className="block text-sm font-medium text-gray-700">Phone (optional)</label>
-            <input {...register("phone")} className="mt-1 w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-indigo-500" />
+            <input
+              name="phone"
+              value={formData.phone}
+              onChange={handleChange}
+              className="mt-1 w-full rounded-lg border px-3 py-2 focus:ring-2 focus:ring-indigo-500"
+            />
             <E name="phone" />
           </div>
 
           {/* ===================== Role-specific fields ===================== */}
           {roleType === RoleType.STUDENT && (
             <>
-              {watch("institutionType") === InstitutionType.SCHOOL ? (
+              {institutionType === InstitutionType.SCHOOL ? (
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">School Name</label>
-                    <input {...register("schoolName")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      name="schoolName"
+                      value={formData.schoolName}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="schoolName" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Board (optional)</label>
-                    <input {...register("board")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      name="board"
+                      value={formData.board}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="board" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Class</label>
-                    <input {...register("className")} placeholder="e.g., 10" className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      name="className"
+                      value={formData.className}
+                      onChange={handleChange}
+                      placeholder="e.g., 10"
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="className" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Section (optional)</label>
-                    <input {...register("section")} placeholder="e.g., A" className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      name="section"
+                      value={formData.section}
+                      onChange={handleChange}
+                      placeholder="e.g., A"
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="section" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Roll No</label>
-                    <input {...register("rollNo")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      name="rollNo"
+                      value={formData.rollNo}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="rollNo" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">DOB</label>
-                    <input type="date" {...register("dob")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      type="date"
+                      name="dob"
+                      value={formData.dob}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="dob" />
                   </div>
                 </div>
@@ -755,27 +897,54 @@ export default function Signup() {
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">College Name</label>
-                    <input {...register("collegeName")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      name="collegeName"
+                      value={formData.collegeName}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="collegeName" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Department</label>
-                    <input {...register("department")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      name="department"
+                      value={formData.department}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="department" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Year of Study</label>
-                    <input type="number" {...register("yearOfStudy")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      type="number"
+                      name="yearOfStudy"
+                      value={formData.yearOfStudy}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="yearOfStudy" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Semester (optional)</label>
-                    <input type="number" {...register("semester")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      type="number"
+                      name="semester"
+                      value={formData.semester}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="semester" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Reg/Roll No</label>
-                    <input {...register("regNo")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      name="regNo"
+                      value={formData.regNo}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="regNo" />
                   </div>
                 </div>
@@ -785,16 +954,26 @@ export default function Signup() {
 
           {roleType === RoleType.FACULTY && (
             <>
-              {watch("institutionType") === InstitutionType.SCHOOL ? (
+              {institutionType === InstitutionType.SCHOOL ? (
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">School Name</label>
-                    <input {...register("schoolName")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      name="schoolName"
+                      value={formData.schoolName}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="schoolName" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Subject</label>
-                    <input {...register("subject")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      name="subject"
+                      value={formData.subject}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="subject" />
                   </div>
                 </div>
@@ -802,12 +981,22 @@ export default function Signup() {
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">College Name</label>
-                    <input {...register("collegeName")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      name="collegeName"
+                      value={formData.collegeName}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="collegeName" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Department</label>
-                    <input {...register("department")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                    <input
+                      name="department"
+                      value={formData.department}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
                     <E name="department" />
                   </div>
                 </div>
@@ -819,22 +1008,43 @@ export default function Signup() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Student Name (optional)</label>
-                <input {...register("studentName")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                <input
+                  name="studentName"
+                  value={formData.studentName}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-lg border px-3 py-2"
+                />
                 <E name="studentName" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Student Class (optional)</label>
-                <input {...register("studentClass")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                <input
+                  name="studentClass"
+                  value={formData.studentClass}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-lg border px-3 py-2"
+                />
                 <E name="studentClass" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Student Roll No (optional)</label>
-                <input {...register("studentRollNo")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                <input
+                  name="studentRollNo"
+                  value={formData.studentRollNo}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-lg border px-3 py-2"
+                />
                 <E name="studentRollNo" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Student DOB (optional)</label>
-                <input type="date" {...register("studentDob")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                <input
+                  type="date"
+                  name="studentDob"
+                  value={formData.studentDob}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-lg border px-3 py-2"
+                />
                 <E name="studentDob" />
               </div>
             </div>
@@ -844,18 +1054,33 @@ export default function Signup() {
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Institution Name (optional)</label>
-                <input {...register("institutionName")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                <input
+                  name="institutionName"
+                  value={formData.institutionName}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-lg border px-3 py-2"
+                />
                 <E name="institutionName" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Designation (optional)</label>
-                <input {...register("designation")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                <input
+                  name="designation"
+                  value={formData.designation}
+                  onChange={handleChange}
+                  className="mt-1 w-full rounded-lg border px-3 py-2"
+                />
                 <E name="designation" />
               </div>
-              {watch("institutionType") === InstitutionType.COLLEGE && (
+              {institutionType === InstitutionType.COLLEGE && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Department (optional)</label>
-                  <input {...register("department")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+                  <input
+                    name="department"
+                    value={formData.department}
+                    onChange={handleChange}
+                    className="mt-1 w-full rounded-lg border px-3 py-2"
+                  />
                   <E name="department" />
                 </div>
               )}
@@ -866,12 +1091,24 @@ export default function Signup() {
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Password</label>
-              <input type="password" {...register("password")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                className="mt-1 w-full rounded-lg border px-3 py-2"
+              />
               <E name="password" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
-              <input type="password" {...register("confirmPassword")} className="mt-1 w-full rounded-lg border px-3 py-2" />
+              <input
+                type="password"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                className="mt-1 w-full rounded-lg border px-3 py-2"
+              />
               <E name="confirmPassword" />
             </div>
           </div>
@@ -879,12 +1116,13 @@ export default function Signup() {
           {/* Submit */}
           <button
             disabled={isSubmitting}
-            type="submit"
+            type="button"
+            onClick={onSubmit}
             className="w-full rounded-lg bg-indigo-600 text-white py-2 font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
           >
             {isSubmitting ? "Creating account…" : "Create account"}
           </button>
-        </form>
+        </div>
       </div>
     </div>
   );
