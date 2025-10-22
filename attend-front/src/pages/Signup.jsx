@@ -570,7 +570,7 @@ function buildPayload(values) {
     institutionType,
     schoolName, board, className, section, rollNo, dob,
     collegeName, department, yearOfStudy, semester, regNo,
-    subject,
+    subject, employeeId,
     studentName, studentClass, studentRollNo, studentDob,
     institutionName, designation,
   } = values;
