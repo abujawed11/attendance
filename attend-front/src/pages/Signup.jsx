@@ -913,7 +913,7 @@ export default function Signup() {
   if (step === 2) {
     return (
       <div className="relative min-h-screen bg-black">
-        <div className="absolute inset-0">
+        <div className="absolute top-0 left-0 right-0 h-1/3">
           <LightRays
             className="w-full h-full opacity-70"
             raysOrigin="top-center"
@@ -992,7 +992,7 @@ export default function Signup() {
   // Signup Form (Step 1)
   return (
     <div className="relative min-h-screen bg-black">
-      <div className="absolute inset-0">
+      <div className="absolute top-0 left-0 right-0 h-1/3">
         <LightRays
           className="w-full h-full opacity-70"
           raysOrigin="top-center"
