@@ -912,7 +912,7 @@ export default function Signup() {
   // OTP Verification Step
   if (step === 2) {
     return (
-      <div className="relative min-h-screen bg-gray-50">
+      <div className="relative min-h-screen bg-black">
         <div className="absolute inset-0">
           <LightRays
             className="w-full h-full opacity-70"
@@ -991,7 +991,7 @@ export default function Signup() {
 
   // Signup Form (Step 1)
   return (
-    <div className="relative min-h-screen bg-gray-50">
+    <div className="relative min-h-screen bg-black">
       <div className="absolute inset-0">
         <LightRays
           className="w-full h-full opacity-70"
