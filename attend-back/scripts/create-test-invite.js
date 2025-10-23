@@ -27,7 +27,7 @@ async function createTestInvite() {
     const invite = await prisma.invite.create({
       data: {
         publicId,
-        code: 'TEST123',
+        code: 'ADMIN123XYZ',
         allowedRoles: JSON.stringify(['STUDENT', 'FACULTY', 'ADMIN']),
         allowedDomains: null,
         maxUses: 100,

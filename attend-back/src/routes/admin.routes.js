@@ -1,0 +1,22 @@
+const express = require('express');
+const router = express.Router();
+const adminController = require('../controllers/admin.controller');
+const { authenticate, requireRole } = require('../middleware/auth.middleware');
+
+// All routes require authentication and ADMIN role
+router.use(authenticate);
+router.use(requireRole('ADMIN'));
+
+// Section management
+router.post('/sections', adminController.createSection);
+router.get('/sections', adminController.getSections);
+router.get('/sections/:sectionId/enrollments', adminController.getSectionEnrollments);
+router.get('/sections/:sectionId/faculty', adminController.getSectionFaculty);
+
+// Enrollment management
+router.post('/enrollments', adminController.enrollStudent);
+
+// Faculty assignment management
+router.post('/faculty-assignments', adminController.assignFacultyToSection);
+
+module.exports = router;

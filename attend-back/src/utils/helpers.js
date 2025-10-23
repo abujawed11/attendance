@@ -19,6 +19,8 @@ async function getNextSequenceId(modelName) {
     user: 'USR',
     institution: 'INS',
     invite: 'INV',
+    section: 'SEC',
+    attendance_session: 'ATT',
   };
 
   const prefix = prefixes[modelName.toLowerCase()] || 'GEN';

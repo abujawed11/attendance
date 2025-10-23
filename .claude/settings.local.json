@@ -10,7 +10,8 @@
       "Bash(node -e:*)",
       "Bash(npm run dev)",
       "Bash(node scripts/create-test-invite.js:*)",
-      "Bash(npx prisma generate:*)"
+      "Bash(npx prisma generate:*)",
+      "Bash(node scripts/seed-attendance.js)"
     ],
     "deny": [],
     "ask": []

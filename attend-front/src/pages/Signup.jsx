@@ -548,6 +548,28 @@ function validateFacultyCollege(values) {
   return errors;
 }
 
+function validateAdmin(values) {
+  const errors = {};
+
+  if (!values.institutionName || values.institutionName.length < 2) {
+    errors.institutionName = "Enter institution name";
+  }
+
+  if (!values.institutionCity || values.institutionCity.length < 2) {
+    errors.institutionCity = "Enter city/location";
+  }
+
+  if (!values.designation || values.designation.length < 2) {
+    errors.designation = "Select designation";
+  }
+
+  if (!values.phone || values.phone.length < 10) {
+    errors.phone = "Enter valid phone number";
+  }
+
+  return errors;
+}
+
 function validateForm(values, roleType, institutionType) {
   let errors = validateBase(values, roleType);
 
@@ -563,6 +585,8 @@ function validateForm(values, roleType, institutionType) {
     } else {
       errors = { ...errors, ...validateFacultyCollege(values) };
     }
+  } else if (roleType === RoleType.ADMIN) {
+    errors = { ...errors, ...validateAdmin(values) };
   }
 
   return errors;
@@ -590,7 +614,11 @@ function buildPayload(values) {
       phone: phone || null,
     },
     institution: institutionType
-      ? { type: institutionType, name: institutionName || schoolName || collegeName || null }
+      ? {
+          type: institutionType,
+          name: institutionName || schoolName || collegeName || null,
+          city: values.institutionCity || null
+        }
       : null,
     profile: {},
   };
@@ -658,6 +686,7 @@ function buildPayload(values) {
       data: {
         institutionType: institutionType || null,
         institutionName: institutionName || null,
+        institutionCity: values.institutionCity || null,
         designation: designation || null,
         department: department || null,
       },
@@ -709,6 +738,7 @@ export default function Signup() {
     studentRollNo: "",
     studentDob: "",
     institutionName: "",
+    institutionCity: "",
   });
 
   const handleChange = (e) => {
@@ -1022,8 +1052,8 @@ export default function Signup() {
             </div>
           )}
 
-          {/* Phone - only show in general section if NOT Student or Faculty (they have it in role-specific section) */}
-          {!(roleType === RoleType.STUDENT || roleType === RoleType.FACULTY) && (
+          {/* Phone - only show for Parent (Student, Faculty, Admin have it in their role-specific sections) */}
+          {roleType === RoleType.PARENT && (
             <div>
               <label className="block text-sm font-medium text-gray-700">Phone (optional)</label>
               <input
@@ -1383,39 +1413,87 @@ export default function Signup() {
           )}
 
           {roleType === RoleType.ADMIN && (
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Institution Name (optional)</label>
-                <input
-                  name="institutionName"
-                  value={formData.institutionName}
-                  onChange={handleChange}
-                  className="mt-1 w-full rounded-lg border px-3 py-2"
-                />
-                <E name="institutionName" />
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  <span className="font-semibold">Admin Setup:</span> These details will be used to create your institution profile.
+                  Faculty and students who join using your invite will be automatically linked to this institution.
+                </p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Designation (optional)</label>
-                <input
-                  name="designation"
-                  value={formData.designation}
-                  onChange={handleChange}
-                  className="mt-1 w-full rounded-lg border px-3 py-2"
-                />
-                <E name="designation" />
-              </div>
-              {institutionType === InstitutionType.COLLEGE && (
+
+              <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Department (optional)</label>
+                  <label className="block text-sm font-medium text-gray-700">Institution Name *</label>
                   <input
-                    name="department"
-                    value={formData.department}
+                    name="institutionName"
+                    value={formData.institutionName}
                     onChange={handleChange}
+                    placeholder="e.g., Springfield High School"
                     className="mt-1 w-full rounded-lg border px-3 py-2"
+                    required
                   />
-                  <E name="department" />
+                  <E name="institutionName" />
                 </div>
-              )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">City/Location *</label>
+                  <input
+                    name="institutionCity"
+                    value={formData.institutionCity}
+                    onChange={handleChange}
+                    placeholder="e.g., Mumbai, Maharashtra"
+                    className="mt-1 w-full rounded-lg border px-3 py-2"
+                    required
+                  />
+                  <E name="institutionCity" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Your Designation *</label>
+                  <select
+                    name="designation"
+                    value={formData.designation}
+                    onChange={handleChange}
+                    className="mt-1 w-full rounded-lg border px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                    required
+                  >
+                    <option value="">Select Designation</option>
+                    <option value="Principal">Principal</option>
+                    <option value="Vice Principal">Vice Principal</option>
+                    <option value="Dean">Dean</option>
+                    <option value="Director">Director</option>
+                    <option value="Registrar">Registrar</option>
+                    <option value="Administrator">Administrator</option>
+                    <option value="Head of Department">Head of Department (HOD)</option>
+                    <option value="Academic Coordinator">Academic Coordinator</option>
+                    <option value="Superintendent">Superintendent</option>
+                  </select>
+                  <E name="designation" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Phone Number *</label>
+                  <input
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="10-digit phone number"
+                    className="mt-1 w-full rounded-lg border px-3 py-2"
+                    required
+                  />
+                  <E name="phone" />
+                </div>
+                {institutionType === InstitutionType.COLLEGE && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Department (optional)</label>
+                    <input
+                      name="department"
+                      value={formData.department}
+                      onChange={handleChange}
+                      placeholder="e.g., Computer Science"
+                      className="mt-1 w-full rounded-lg border px-3 py-2"
+                    />
+                    <E name="department" />
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

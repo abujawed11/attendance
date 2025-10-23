@@ -44,12 +44,14 @@ model Institution {
   publicId   String          @unique @db.VarChar(16) // INS000001
   name       String
   type       InstitutionType
+  city       String?                           // City/Location
   board      String?                           // for schools (CBSE/ICSE/etc.)
   createdAt  DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
 
   users      User[]
   invites    Invite[]
+  sections   Section[]
 }
 
 model User {
@@ -78,6 +80,11 @@ model User {
   // Parent linking (many students per parent; many parents per student)
   guardianships StudentGuardian[] @relation("ParentLinks")
   wards         StudentGuardian[] @relation("StudentLinks")
+
+  // Attendance relations
+  enrollments          Enrollment[]          @relation("StudentEnrollments")
+  facultySections      FacultySection[]      @relation("FacultyAssignments")
+  attendanceSessions   AttendanceSession[]   @relation("FacultyAttendanceSessions")
 }
 
 /* ===================== Invites ===================== */
@@ -186,6 +193,7 @@ model AdminProfile {
 
   institutionType InstitutionType? // optional if admin is global
   institutionName String?
+  institutionCity String?          // City/Location of institution
   designation     String?          // Principal / Registrar / Dept Admin
   department      String?          // if college admin
 }
@@ -202,4 +210,144 @@ model OTP {
   createdAt DateTime @default(now())
 
   @@index([email, purpose])
+}
+
+/* ===================== Attendance System ===================== */
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+}
+
+/**
+ * Section - Unified for both School & College
+ * School: "Class 10 A"
+ * College: "CSE 3rd Year A"
+ */
+model Section {
+  id        Int             @id @default(autoincrement())
+  publicId  String          @unique @db.VarChar(16) // SEC000001
+  name      String                                   // "Class 10 A" or "CSE 3rd Year A"
+
+  institutionId Int
+  institution   Institution @relation(fields: [institutionId], references: [id])
+
+  // For schools
+  schoolClass   String?     // "10", "11", "12"
+  schoolSection String?     // "A", "B", "C"
+  board         String?     // "CBSE", "ICSE", "State"
+
+  // For colleges
+  department    String?     // "CSE", "Mechanical", "Civil"
+  yearOfStudy   Int?        // 1, 2, 3, 4
+  semester      Int?        // 1-8
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  enrollments       Enrollment[]
+  facultySections   FacultySection[]
+  attendanceSessions AttendanceSession[]
+
+  @@index([institutionId])
+}
+
+/**
+ * Enrollment - M2M between Student and Section
+ * A student can be enrolled in multiple sections (different subjects)
+ * A section has multiple students
+ */
+model Enrollment {
+  id        Int      @id @default(autoincrement())
+
+  studentUserId Int
+  student       User @relation("StudentEnrollments", fields: [studentUserId], references: [id])
+
+  sectionId Int
+  section   Section @relation(fields: [sectionId], references: [id])
+
+  enrolledAt DateTime @default(now())
+  isActive   Boolean  @default(true)
+
+  // Relations
+  attendancePunches AttendancePunch[]
+
+  @@unique([studentUserId, sectionId])
+  @@index([studentUserId])
+  @@index([sectionId])
+}
+
+/**
+ * FacultySection - M2M between Faculty and Section
+ * A faculty can teach multiple sections
+ * A section can have multiple faculty (different subjects)
+ */
+model FacultySection {
+  id        Int      @id @default(autoincrement())
+
+  facultyUserId Int
+  faculty       User @relation("FacultyAssignments", fields: [facultyUserId], references: [id])
+
+  sectionId Int
+  section   Section @relation(fields: [sectionId], references: [id])
+
+  subject   String?  // "Mathematics", "Physics", "Data Structures"
+  assignedAt DateTime @default(now())
+  isActive   Boolean  @default(true)
+
+  @@unique([facultyUserId, sectionId, subject])
+  @@index([facultyUserId])
+  @@index([sectionId])
+}
+
+/**
+ * AttendanceSession - A specific attendance-taking session
+ * Created by faculty for a specific section on a specific date
+ */
+model AttendanceSession {
+  id        Int      @id @default(autoincrement())
+  publicId  String   @unique @db.VarChar(16) // ATT000001
+
+  sectionId Int
+  section   Section @relation(fields: [sectionId], references: [id])
+
+  facultyUserId Int
+  faculty       User @relation("FacultyAttendanceSessions", fields: [facultyUserId], references: [id])
+
+  date      DateTime @default(now())
+  subject   String?  // Optional: which subject/period
+  notes     String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  punches AttendancePunch[]
+
+  @@index([sectionId, date])
+  @@index([facultyUserId])
+}
+
+/**
+ * AttendancePunch - Individual attendance record for a student in a session
+ */
+model AttendancePunch {
+  id        Int              @id @default(autoincrement())
+
+  sessionId Int
+  session   AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  enrollmentId Int
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id])
+
+  status    AttendanceStatus
+  remarks   String?          @db.Text
+
+  markedAt  DateTime         @default(now())
+
+  @@unique([sessionId, enrollmentId])
+  @@index([sessionId])
+  @@index([enrollmentId])
 }

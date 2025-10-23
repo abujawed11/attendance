@@ -5,6 +5,8 @@ const morgan = require('morgan');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth.routes');
+const attendanceRoutes = require('./routes/attendance.routes');
+const adminRoutes = require('./routes/admin.routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -18,6 +20,8 @@ app.use(morgan('dev'));
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

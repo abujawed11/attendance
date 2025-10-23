@@ -8,6 +8,10 @@ import Home from "./pages/Home.jsx";
 import Signup from "./pages/Signup.jsx";
 import Login from "./pages/Login.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
+import FacultyAttendance from "./pages/FacultyAttendance.jsx";
+import MarkAttendance from "./pages/MarkAttendance.jsx";
+import AttendanceHistory from "./pages/AttendanceHistory.jsx";
+import StudentAttendance from "./pages/StudentAttendance.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
@@ -36,6 +40,38 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/attendance",
+        element: (
+          <ProtectedRoute>
+            <FacultyAttendance />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/attendance/mark/:sectionId",
+        element: (
+          <ProtectedRoute>
+            <MarkAttendance />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/attendance/history/:sectionId",
+        element: (
+          <ProtectedRoute>
+            <AttendanceHistory />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/my-attendance",
+        element: (
+          <ProtectedRoute>
+            <StudentAttendance />
           </ProtectedRoute>
         ),
       },

@@ -220,6 +220,7 @@ async function verifyOTP(req, res) {
               publicId: instPublicId,
               name: institution.name,
               type: institution.type,
+              city: institution.city || null,
             },
           });
         }
