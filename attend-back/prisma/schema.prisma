@@ -196,6 +196,7 @@ model AdminProfile {
   institutionCity String?          // City/Location of institution
   designation     String?          // Principal / Registrar / Dept Admin
   department      String?          // if college admin
+  board           String?          // if school admin (CBSE/ICSE/State board)
 }
 
 /* ===================== OTP/Verification ===================== */

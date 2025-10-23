@@ -549,7 +549,7 @@ function validateFacultyCollege(values) {
   return errors;
 }
 
-function validateAdmin(values) {
+function validateAdmin(values, institutionType) {
   const errors = {};
 
   if (!values.institutionName || values.institutionName.length < 2) {
@@ -566,6 +566,13 @@ function validateAdmin(values) {
 
   if (!values.phone || values.phone.length < 10) {
     errors.phone = "Enter valid phone number";
+  }
+
+  // Board is required for schools
+  if (institutionType === InstitutionType.SCHOOL) {
+    if (!values.board || values.board.length < 2) {
+      errors.board = "Select board";
+    }
   }
 
   return errors;
@@ -587,7 +594,7 @@ function validateForm(values, roleType, institutionType) {
       errors = { ...errors, ...validateFacultyCollege(values) };
     }
   } else if (roleType === RoleType.ADMIN) {
-    errors = { ...errors, ...validateAdmin(values) };
+    errors = { ...errors, ...validateAdmin(values, institutionType) };
   }
 
   return errors;
@@ -690,6 +697,7 @@ function buildPayload(values) {
         institutionCity: values.institutionCity || null,
         designation: designation || null,
         department: department || null,
+        board: board || null,
       },
     };
   }
@@ -765,13 +773,14 @@ export default function Signup() {
   const onChangeInst = (e) => {
     const it = e.target.value;
     setInstitutionType(it);
-    
+
     // Clear institution-specific fields when switching
     setFormData(prev => ({
       ...prev,
       institutionType: it,
       schoolName: "",
       collegeName: "",
+      institutionName: "",
       department: "",
       subject: "",
       board: "",
@@ -1460,8 +1469,10 @@ export default function Signup() {
                     className="mt-1 w-full rounded-lg border px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
                     required
                   >
-                    <option value="">Select Institution</option>
-                    {ALL_INSTITUTIONS.map((institution) => (
+                    <option value="">
+                      {institutionType === InstitutionType.SCHOOL ? "Select School" : "Select College"}
+                    </option>
+                    {(institutionType === InstitutionType.SCHOOL ? ALL_SCHOOLS : COLLEGES).map((institution) => (
                       <option key={institution} value={institution}>
                         {institution}
                       </option>
@@ -1515,6 +1526,29 @@ export default function Signup() {
                   />
                   <E name="phone" />
                 </div>
+                {institutionType === InstitutionType.SCHOOL && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Board *</label>
+                    <select
+                      name="board"
+                      value={formData.board}
+                      onChange={handleChange}
+                      className="mt-1 w-full rounded-lg border px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                      required
+                    >
+                      <option value="">Select Board</option>
+                      <option value="CBSE">CBSE</option>
+                      <option value="ICSE">ICSE</option>
+                      <option value="ISC">ISC</option>
+                      <option value="Jharkhand Board">Jharkhand Board (JAC)</option>
+                      <option value="State Board">State Board</option>
+                      <option value="International Baccalaureate">International Baccalaureate (IB)</option>
+                      <option value="Cambridge">Cambridge (IGCSE)</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    <E name="board" />
+                  </div>
+                )}
                 {institutionType === InstitutionType.COLLEGE && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Department (optional)</label>

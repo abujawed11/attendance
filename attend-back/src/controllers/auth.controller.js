@@ -215,12 +215,20 @@ async function verifyOTP(req, res) {
 
         if (!institutionRecord) {
           const instPublicId = await getNextSequenceId('institution');
+
+          // Extract board from profile data if it's an admin creating a school
+          let boardValue = null;
+          if (profile && profile.kind === 'admin' && profile.data && profile.data.board) {
+            boardValue = profile.data.board;
+          }
+
           institutionRecord = await tx.institution.create({
             data: {
               publicId: instPublicId,
               name: institution.name,
               type: institution.type,
               city: institution.city || null,
+              board: boardValue,
             },
           });
         }
