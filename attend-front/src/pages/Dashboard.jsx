@@ -130,6 +130,17 @@ export default function Dashboard() {
               </button>
             )}
 
+            {user?.roleType === 'ADMIN' && (
+              <button
+                onClick={() => navigate('/admin')}
+                className="p-4 border-2 border-indigo-500 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors text-left"
+              >
+                <div className="text-3xl mb-2">⚙️</div>
+                <h4 className="font-semibold text-gray-900">Admin Panel</h4>
+                <p className="text-sm text-gray-500">Manage institution data and bulk imports</p>
+              </button>
+            )}
+
             <button className="p-4 border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 transition-colors text-left">
               <div className="text-3xl mb-2">👤</div>
               <h4 className="font-semibold text-gray-900">Profile Settings</h4>

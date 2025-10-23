@@ -12,6 +12,7 @@ import FacultyAttendance from "./pages/FacultyAttendance.jsx";
 import MarkAttendance from "./pages/MarkAttendance.jsx";
 import AttendanceHistory from "./pages/AttendanceHistory.jsx";
 import StudentAttendance from "./pages/StudentAttendance.jsx";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
@@ -72,6 +73,14 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <StudentAttendance />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/admin",
+        element: (
+          <ProtectedRoute>
+            <AdminDashboard />
           </ProtectedRoute>
         ),
       },

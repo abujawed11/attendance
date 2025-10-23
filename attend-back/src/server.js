@@ -2,11 +2,13 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const fileUpload = require('express-fileupload');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth.routes');
 const attendanceRoutes = require('./routes/attendance.routes');
 const adminRoutes = require('./routes/admin.routes');
+const importRoutes = require('./routes/import.routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -17,11 +19,17 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
+app.use(fileUpload({
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max file size
+  abortOnLimit: true,
+  responseOnLimit: 'File size exceeds 5MB limit'
+}));
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin', importRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
