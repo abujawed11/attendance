@@ -385,8 +385,9 @@
 
 
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import LightRays from "../components/LightRays";
 import { API_ENDPOINTS } from "../config/api";
 import { ALL_SCHOOLS, COLLEGES, ALL_INSTITUTIONS } from "../data/institutions";
 
@@ -649,7 +650,7 @@ function buildPayload(values) {
         },
       };
     }
-  } else if (roleType === RoleType.FACULTY) {
+    } else if (roleType === RoleType.FACULTY) {
     if (institutionType === InstitutionType.SCHOOL) {
       payload.profile = {
         kind: "facultySchool",
@@ -707,7 +708,7 @@ export default function Signup() {
 
   // OTP verification state
   const [step, setStep] = useState(1); // 1: signup form, 2: OTP verification
-  const [otpSent, setOtpSent] = useState(false);
+  // removed unused otpSent state
   const [otp, setOtp] = useState("");
   const [signupPayload, setSignupPayload] = useState(null);
   
@@ -821,7 +822,6 @@ export default function Signup() {
 
       // OTP sent successfully
       setSignupPayload(payload);
-      setOtpSent(true);
       setStep(2);
       alert(`OTP sent to ${formData.email}. Please check your email.`);
     } catch (error) {
@@ -912,8 +912,26 @@ export default function Signup() {
   // OTP Verification Step
   if (step === 2) {
     return (
-      <div className="min-h-screen grid place-items-center bg-gray-50 px-4 py-8">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">
+      <div className="relative min-h-screen bg-gray-50">
+        <div className="absolute inset-0">
+          <LightRays
+            className="w-full h-full opacity-70"
+            raysOrigin="top-center"
+            raysColor="#ffffff"
+            raysSpeed={0.8}
+            lightSpread={1.2}
+            rayLength={2.2}
+            pulsating={true}
+            fadeDistance={1.2}
+            saturation={1.0}
+            followMouse={true}
+            mouseInfluence={0.08}
+            noiseAmount={0.05}
+            distortion={0.05}
+          />
+        </div>
+        <div className="relative z-10 min-h-screen grid place-items-center px-4 py-8">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">
           <h1 className="text-2xl font-semibold text-center mb-2">Verify Your Email</h1>
           <p className="text-sm text-gray-500 text-center mb-6">
             We've sent a 6-digit OTP to <strong>{formData.email}</strong>
@@ -965,6 +983,7 @@ export default function Signup() {
               </button>
             </div>
           </form>
+          </div>
         </div>
       </div>
     );
@@ -972,8 +991,26 @@ export default function Signup() {
 
   // Signup Form (Step 1)
   return (
-    <div className="min-h-screen grid place-items-center bg-gray-50 px-4 py-8">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow p-6">
+    <div className="relative min-h-screen bg-gray-50">
+      <div className="absolute inset-0">
+        <LightRays
+          className="w-full h-full opacity-70"
+          raysOrigin="top-center"
+          raysColor="#ffffff"
+          raysSpeed={0.8}
+          lightSpread={1.2}
+          rayLength={2.2}
+          pulsating={true}
+          fadeDistance={1.2}
+          saturation={1.0}
+          followMouse={true}
+          mouseInfluence={0.08}
+          noiseAmount={0.05}
+          distortion={0.05}
+        />
+      </div>
+      <div className="relative z-10 min-h-screen grid place-items-center px-4 py-8">
+        <div className="w-full max-w-2xl bg-white rounded-2xl shadow p-6">
         <h1 className="text-2xl font-semibold text-center mb-2">Create your account</h1>
         <p className="text-sm text-gray-500 text-center mb-6">Sign up with role-specific details</p>
 
@@ -1574,6 +1611,7 @@ export default function Signup() {
             </a>
           </p>
         </form>
+        </div>
       </div>
     </div>
   );
