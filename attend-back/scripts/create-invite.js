@@ -13,9 +13,10 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 async function createInvite() {
+  // Parse command line arguments
+  const args = process.argv.slice(2);
+
   try {
-    // Parse command line arguments
-    const args = process.argv.slice(2);
 
     if (args.length < 1) {
       console.log('❌ Error: Invite code is required!\n');

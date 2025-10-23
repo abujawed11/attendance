@@ -388,6 +388,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_ENDPOINTS } from "../config/api";
+import { ALL_SCHOOLS, COLLEGES, ALL_INSTITUTIONS } from "../data/institutions";
 
 /* -------------------- enums (match Prisma) -------------------- */
 const RoleType = {
@@ -1073,12 +1074,19 @@ export default function Signup() {
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">School Name</label>
-                    <input
+                    <select
                       name="schoolName"
                       value={formData.schoolName}
                       onChange={handleChange}
-                      className="mt-1 w-full rounded-lg border px-3 py-2"
-                    />
+                      className="mt-1 w-full rounded-lg border px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Select School</option>
+                      {ALL_SCHOOLS.map((school) => (
+                        <option key={school} value={school}>
+                          {school}
+                        </option>
+                      ))}
+                    </select>
                     <E name="schoolName" />
                   </div>
                   <div>
@@ -1151,12 +1159,19 @@ export default function Signup() {
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">College Name</label>
-                    <input
+                    <select
                       name="collegeName"
                       value={formData.collegeName}
                       onChange={handleChange}
-                      className="mt-1 w-full rounded-lg border px-3 py-2"
-                    />
+                      className="mt-1 w-full rounded-lg border px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Select College</option>
+                      {COLLEGES.map((college) => (
+                        <option key={college} value={college}>
+                          {college}
+                        </option>
+                      ))}
+                    </select>
                     <E name="collegeName" />
                   </div>
                   <div>
@@ -1235,12 +1250,19 @@ export default function Signup() {
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">School Name</label>
-                    <input
+                    <select
                       name="schoolName"
                       value={formData.schoolName}
                       onChange={handleChange}
-                      className="mt-1 w-full rounded-lg border px-3 py-2"
-                    />
+                      className="mt-1 w-full rounded-lg border px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Select School</option>
+                      {ALL_SCHOOLS.map((school) => (
+                        <option key={school} value={school}>
+                          {school}
+                        </option>
+                      ))}
+                    </select>
                     <E name="schoolName" />
                   </div>
                   <div>
@@ -1291,12 +1313,19 @@ export default function Signup() {
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">College Name</label>
-                    <input
+                    <select
                       name="collegeName"
                       value={formData.collegeName}
                       onChange={handleChange}
-                      className="mt-1 w-full rounded-lg border px-3 py-2"
-                    />
+                      className="mt-1 w-full rounded-lg border px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Select College</option>
+                      {COLLEGES.map((college) => (
+                        <option key={college} value={college}>
+                          {college}
+                        </option>
+                      ))}
+                    </select>
                     <E name="collegeName" />
                   </div>
                   <div>
@@ -1424,14 +1453,20 @@ export default function Signup() {
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Institution Name *</label>
-                  <input
+                  <select
                     name="institutionName"
                     value={formData.institutionName}
                     onChange={handleChange}
-                    placeholder="e.g., Springfield High School"
-                    className="mt-1 w-full rounded-lg border px-3 py-2"
+                    className="mt-1 w-full rounded-lg border px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
                     required
-                  />
+                  >
+                    <option value="">Select Institution</option>
+                    {ALL_INSTITUTIONS.map((institution) => (
+                      <option key={institution} value={institution}>
+                        {institution}
+                      </option>
+                    ))}
+                  </select>
                   <E name="institutionName" />
                 </div>
                 <div>
