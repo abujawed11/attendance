@@ -47,6 +47,16 @@ export default function ImportWizard({ type, onClose }) {
     }
   };
 
+  const handleReset = () => {
+    // Reset all state
+    setCurrentStep(1);
+    setUploadedFile(null);
+    setParsedData(null);
+    setIsProcessing(false);
+    setIsSaving(false);
+    setImportResults(null);
+  };
+
   const parseUploadedFile = async () => {
     setIsProcessing(true);
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -127,7 +137,7 @@ export default function ImportWizard({ type, onClose }) {
       case 4:
         return <StepPreview type={type} typeColor={typeColor} parsedData={parsedData} />;
       case 5:
-        return <StepSave type={type} typeColor={typeColor} parsedData={parsedData} importResults={importResults} isSaving={isSaving} />;
+        return <StepSave type={type} typeColor={typeColor} parsedData={parsedData} importResults={importResults} isSaving={isSaving} onReset={handleReset} />;
       default:
         return null;
     }
@@ -194,9 +204,9 @@ export default function ImportWizard({ type, onClose }) {
         <div className="bg-gray-50 px-6 py-4 border-t flex items-center justify-between">
           <button
             onClick={handlePrevious}
-            disabled={currentStep === 1}
+            disabled={currentStep === 1 || (currentStep === 5 && importResults !== null)}
             className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-              currentStep === 1
+              currentStep === 1 || (currentStep === 5 && importResults !== null)
                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
@@ -1057,7 +1067,7 @@ function StepPreview({ type, typeColor, parsedData }) {
 }
 
 // Step 5: Save
-function StepSave({ type, typeColor, parsedData, importResults, isSaving }) {
+function StepSave({ type, typeColor, parsedData, importResults, isSaving, onReset }) {
   if (isSaving) {
     return (
       <div className="text-center py-12">
@@ -1177,7 +1187,7 @@ function StepSave({ type, typeColor, parsedData, importResults, isSaving }) {
       {/* Actions */}
       <div className="flex gap-4 justify-center">
         <button
-          onClick={() => window.location.reload()}
+          onClick={onReset}
           className={`px-6 py-3 bg-${typeColor}-600 text-white rounded-lg hover:bg-${typeColor}-700 font-medium transition-colors`}
         >
           Import More Data
