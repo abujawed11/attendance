@@ -404,6 +404,39 @@ function detectColumnMapping(headers, fieldMap) {
 }
 
 /**
+ * Generate default password from name and phone
+ * Removes titles (Mr., Ms., Dr., etc.) and uses first name
+ */
+function generateDefaultPassword(fullName, phone) {
+  // List of common titles/initials to remove
+  const titles = ['mr', 'mrs', 'ms', 'miss', 'dr', 'prof', 'sir', 'madam', 'master'];
+
+  // Clean and split the name
+  let nameParts = fullName.trim().toLowerCase().split(/\s+/);
+
+  // Remove titles from the beginning
+  while (nameParts.length > 0 && (titles.includes(nameParts[0].replace('.', '')) || nameParts[0].length <= 2)) {
+    nameParts.shift();
+  }
+
+  // If no name parts left (edge case), use original name
+  if (nameParts.length === 0) {
+    nameParts = fullName.trim().toLowerCase().split(/\s+/);
+  }
+
+  // Get first name (first part after removing titles)
+  const firstName = nameParts[0];
+
+  // Take first 4 letters of first name (or all if less than 4)
+  const namePart = firstName.substring(0, 4);
+
+  // Take last 4 digits of phone
+  const phonePart = String(phone).replace(/\D/g, '').slice(-4);
+
+  return namePart + phonePart;
+}
+
+/**
  * Validate a single row of faculty data
  */
 async function validateFacultyRow(rowData, rowIndex, institutionId, institutionType) {
@@ -451,13 +484,25 @@ async function validateFacultyRow(rowData, rowIndex, institutionId, institutionT
     }
   }
 
-  // Database validations (check duplicates)
+  // Database validations (check duplicates) - ALL ARE ERRORS NOW
   if (rowData.email && validateEmail(rowData.email)) {
     const existingUser = await prisma.user.findUnique({
       where: { email: rowData.email }
     });
     if (existingUser) {
-      warnings.push({ field: 'email', message: 'Email already exists - will be updated' });
+      errors.push({ field: 'email', message: 'Email already exists in database' });
+    }
+  }
+
+  if (rowData.phone) {
+    const existingPhone = await prisma.user.findFirst({
+      where: {
+        phone: String(rowData.phone).trim(),
+        institutionId: institutionId
+      }
+    });
+    if (existingPhone) {
+      errors.push({ field: 'phone', message: 'Phone number already exists in database' });
     }
   }
 
@@ -481,7 +526,7 @@ async function validateFacultyRow(rowData, rowIndex, institutionId, institutionT
     }
 
     if (existingFaculty) {
-      warnings.push({ field: 'employeeId', message: 'Employee ID exists - will be updated' });
+      errors.push({ field: 'employeeId', message: 'Employee ID already exists in database' });
     }
   }
 
@@ -538,13 +583,25 @@ async function validateStudentRow(rowData, rowIndex, institutionId, institutionT
     warnings.push({ field: 'guardianPhone', message: 'Guardian phone must be 10 digits' });
   }
 
-  // Database validations
+  // Database validations - ALL ARE ERRORS NOW
   if (rowData.email && validateEmail(rowData.email)) {
     const existingUser = await prisma.user.findUnique({
       where: { email: rowData.email }
     });
     if (existingUser) {
-      warnings.push({ field: 'email', message: 'Email already exists - will be updated' });
+      errors.push({ field: 'email', message: 'Email already exists in database' });
+    }
+  }
+
+  if (rowData.phone) {
+    const existingPhone = await prisma.user.findFirst({
+      where: {
+        phone: String(rowData.phone).trim(),
+        institutionId: institutionId
+      }
+    });
+    if (existingPhone) {
+      errors.push({ field: 'phone', message: 'Phone number already exists in database' });
     }
   }
 
@@ -568,7 +625,7 @@ async function validateStudentRow(rowData, rowIndex, institutionId, institutionT
     }
 
     if (existingStudent) {
-      warnings.push({ field: 'rollNumber', message: 'Roll Number exists - will be updated' });
+      errors.push({ field: 'rollNumber', message: 'Roll Number already exists in database' });
     }
   }
 
@@ -659,7 +716,156 @@ async function parseAndValidateFile(req, res) {
       });
     }
 
-    // Calculate statistics
+    // Check for duplicates within the Excel file
+    const emailMap = new Map();
+    const phoneMap = new Map();
+    const employeeIdMap = new Map();
+    const rollNumberMap = new Map();
+
+    for (let i = 0; i < parsedRows.length; i++) {
+      const row = parsedRows[i];
+      const validation = validationResults[i];
+
+      // Check duplicate emails within file
+      if (row.data.email) {
+        const email = row.data.email.toLowerCase().trim();
+        if (emailMap.has(email)) {
+          const duplicateRows = emailMap.get(email);
+          duplicateRows.push(row.rowIndex);
+          emailMap.set(email, duplicateRows);
+
+          // Add error to current row and all previous duplicates
+          validation.errors.push({
+            field: 'email',
+            message: `Duplicate email in Excel file (also in rows: ${duplicateRows.filter(r => r !== row.rowIndex).join(', ')})`
+          });
+          row.hasErrors = true;
+
+          // Also update previous rows with same email
+          for (const prevRowIndex of duplicateRows.filter(r => r !== row.rowIndex)) {
+            const prevIdx = parsedRows.findIndex(r => r.rowIndex === prevRowIndex);
+            if (prevIdx >= 0) {
+              const prevValidation = validationResults[prevIdx];
+              // Check if error already exists
+              const hasError = prevValidation.errors.some(e => e.field === 'email' && e.message.includes('Duplicate email'));
+              if (!hasError) {
+                prevValidation.errors.push({
+                  field: 'email',
+                  message: `Duplicate email in Excel file (also in rows: ${duplicateRows.filter(r => r !== prevRowIndex).join(', ')})`
+                });
+                parsedRows[prevIdx].hasErrors = true;
+              }
+            }
+          }
+        } else {
+          emailMap.set(email, [row.rowIndex]);
+        }
+      }
+
+      // Check duplicate phone numbers within file
+      if (row.data.phone) {
+        const phone = String(row.data.phone).trim();
+        if (phoneMap.has(phone)) {
+          const duplicateRows = phoneMap.get(phone);
+          duplicateRows.push(row.rowIndex);
+          phoneMap.set(phone, duplicateRows);
+
+          validation.errors.push({
+            field: 'phone',
+            message: `Duplicate phone number in Excel file (also in rows: ${duplicateRows.filter(r => r !== row.rowIndex).join(', ')})`
+          });
+          row.hasErrors = true;
+
+          // Also update previous rows
+          for (const prevRowIndex of duplicateRows.filter(r => r !== row.rowIndex)) {
+            const prevIdx = parsedRows.findIndex(r => r.rowIndex === prevRowIndex);
+            if (prevIdx >= 0) {
+              const prevValidation = validationResults[prevIdx];
+              const hasError = prevValidation.errors.some(e => e.field === 'phone' && e.message.includes('Duplicate phone'));
+              if (!hasError) {
+                prevValidation.errors.push({
+                  field: 'phone',
+                  message: `Duplicate phone number in Excel file (also in rows: ${duplicateRows.filter(r => r !== prevRowIndex).join(', ')})`
+                });
+                parsedRows[prevIdx].hasErrors = true;
+              }
+            }
+          }
+        } else {
+          phoneMap.set(phone, [row.rowIndex]);
+        }
+      }
+
+      // Check duplicate employee IDs within file (for faculty)
+      if (type === 'faculty' && row.data.employeeId) {
+        const employeeId = String(row.data.employeeId).trim();
+        if (employeeIdMap.has(employeeId)) {
+          const duplicateRows = employeeIdMap.get(employeeId);
+          duplicateRows.push(row.rowIndex);
+          employeeIdMap.set(employeeId, duplicateRows);
+
+          validation.errors.push({
+            field: 'employeeId',
+            message: `Duplicate employee ID in Excel file (also in rows: ${duplicateRows.filter(r => r !== row.rowIndex).join(', ')})`
+          });
+          row.hasErrors = true;
+
+          // Also update previous rows
+          for (const prevRowIndex of duplicateRows.filter(r => r !== row.rowIndex)) {
+            const prevIdx = parsedRows.findIndex(r => r.rowIndex === prevRowIndex);
+            if (prevIdx >= 0) {
+              const prevValidation = validationResults[prevIdx];
+              const hasError = prevValidation.errors.some(e => e.field === 'employeeId' && e.message.includes('Duplicate employee ID'));
+              if (!hasError) {
+                prevValidation.errors.push({
+                  field: 'employeeId',
+                  message: `Duplicate employee ID in Excel file (also in rows: ${duplicateRows.filter(r => r !== prevRowIndex).join(', ')})`
+                });
+                parsedRows[prevIdx].hasErrors = true;
+              }
+            }
+          }
+        } else {
+          employeeIdMap.set(employeeId, [row.rowIndex]);
+        }
+      }
+
+      // Check duplicate roll numbers within file (for students)
+      if (type === 'student' && row.data.rollNumber) {
+        const rollNumber = String(row.data.rollNumber).trim();
+        if (rollNumberMap.has(rollNumber)) {
+          const duplicateRows = rollNumberMap.get(rollNumber);
+          duplicateRows.push(row.rowIndex);
+          rollNumberMap.set(rollNumber, duplicateRows);
+
+          validation.errors.push({
+            field: 'rollNumber',
+            message: `Duplicate roll number in Excel file (also in rows: ${duplicateRows.filter(r => r !== row.rowIndex).join(', ')})`
+          });
+          row.hasErrors = true;
+
+          // Also update previous rows
+          for (const prevRowIndex of duplicateRows.filter(r => r !== row.rowIndex)) {
+            const prevIdx = parsedRows.findIndex(r => r.rowIndex === prevRowIndex);
+            if (prevIdx >= 0) {
+              const prevValidation = validationResults[prevIdx];
+              const hasError = prevValidation.errors.some(e => e.field === 'rollNumber' && e.message.includes('Duplicate roll number'));
+              if (!hasError) {
+                prevValidation.errors.push({
+                  field: 'rollNumber',
+                  message: `Duplicate roll number in Excel file (also in rows: ${duplicateRows.filter(r => r !== prevRowIndex).join(', ')})`
+                });
+                parsedRows[prevIdx].hasErrors = true;
+              }
+            }
+          }
+        } else {
+          rollNumberMap.set(rollNumber, [row.rowIndex]);
+        }
+      }
+    }
+
+    // Recalculate statistics after duplicate check
     const stats = {
       total: parsedRows.length,
       valid: parsedRows.filter(r => !r.hasErrors).length,
@@ -762,10 +968,8 @@ async function saveImportData(req, res) {
 async function importFacultyRecord(rowData, institutionId, institutionType, institution, results) {
   const bcrypt = require('bcrypt');
 
-  // Generate default password (first 4 letters of name + last 4 digits of phone)
-  const namePart = rowData.fullName.replace(/\s/g, '').substring(0, 4).toLowerCase();
-  const phonePart = String(rowData.phone).slice(-4);
-  const defaultPassword = `${namePart}${phonePart}`;
+  // Generate default password using helper function
+  const defaultPassword = generateDefaultPassword(rowData.fullName, rowData.phone);
   const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
   // Parse joining date if provided
@@ -889,10 +1093,8 @@ async function importFacultyRecord(rowData, institutionId, institutionType, inst
 async function importStudentRecord(rowData, institutionId, institutionType, institution, results) {
   const bcrypt = require('bcrypt');
 
-  // Generate default password
-  const namePart = rowData.fullName.replace(/\s/g, '').substring(0, 4).toLowerCase();
-  const phonePart = String(rowData.phone).slice(-4);
-  const defaultPassword = `${namePart}${phonePart}`;
+  // Generate default password using helper function
+  const defaultPassword = generateDefaultPassword(rowData.fullName, rowData.phone);
   const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
   // Parse date of birth

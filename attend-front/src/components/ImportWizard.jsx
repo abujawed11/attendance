@@ -535,26 +535,134 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
       if (r.rowIndex === editingRow.rowIndex) {
         return {
           ...r,
-          data: editFormData,
-          // Mark for re-validation
-          hasErrors: false,
-          hasWarnings: false
+          data: editFormData
         };
       }
       return r;
     });
 
-    // Simple client-side validation (you can enhance this)
-    const editedRow = updatedRows.find(r => r.rowIndex === editingRow.rowIndex);
+    // Get the original validation for this row
+    const originalValidation = parsedData.validationResults.find(v => v.rowIndex === editingRow.rowIndex);
+
+    // Start with empty arrays for re-validation
     const errors = [];
     const warnings = [];
 
-    // Basic validation
-    if (!editFormData.fullName || !editFormData.fullName.trim()) {
+    // Keep database-related errors from original validation (we can't check DB from frontend)
+    if (originalValidation) {
+      originalValidation.errors.forEach(err => {
+        if (err.message.includes('already exists in database')) {
+          // Check if the field value has changed
+          const originalData = editingRow.data;
+          const fieldChanged = editFormData[err.field] !== originalData[err.field];
+
+          // Only keep the error if field hasn't changed
+          if (!fieldChanged) {
+            errors.push(err);
+          }
+          // If field changed, we assume user is trying to fix it
+        }
+      });
+    }
+
+    // Comprehensive client-side validation
+    const editedRow = updatedRows.find(r => r.rowIndex === editingRow.rowIndex);
+
+    // Required fields validation
+    if (!editFormData.fullName || String(editFormData.fullName).trim() === '') {
       errors.push({ field: 'fullName', message: 'Full Name is required' });
     }
-    if (!editFormData.email || !editFormData.email.trim()) {
+
+    if (!editFormData.email || String(editFormData.email).trim() === '') {
       errors.push({ field: 'email', message: 'Email is required' });
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(editFormData.email).trim())) {
+      errors.push({ field: 'email', message: 'Invalid email format' });
+    }
+
+    if (!editFormData.phone || String(editFormData.phone).trim() === '') {
+      errors.push({ field: 'phone', message: 'Phone is required' });
+    } else if (!/^\d{10}$/.test(String(editFormData.phone).replace(/\s/g, ''))) {
+      errors.push({ field: 'phone', message: 'Phone must be 10 digits' });
+    }
+
+    // Type-specific validation
+    if (type === 'faculty') {
+      if (!editFormData.employeeId || String(editFormData.employeeId).trim() === '') {
+        errors.push({ field: 'employeeId', message: 'Employee ID is required' });
+      }
+      if (!editFormData.department || String(editFormData.department).trim() === '') {
+        errors.push({ field: 'department', message: 'Department is required' });
+      }
+      if (!editFormData.designation || String(editFormData.designation).trim() === '') {
+        errors.push({ field: 'designation', message: 'Designation is required' });
+      }
+      if (!editFormData.qualification || String(editFormData.qualification).trim() === '') {
+        errors.push({ field: 'qualification', message: 'Qualification is required' });
+      }
+    } else if (type === 'student') {
+      if (!editFormData.rollNumber || String(editFormData.rollNumber).trim() === '') {
+        errors.push({ field: 'rollNumber', message: 'Roll Number is required' });
+      }
+      if (!editFormData.dateOfBirth || String(editFormData.dateOfBirth).trim() === '') {
+        errors.push({ field: 'dateOfBirth', message: 'Date of Birth is required' });
+      }
+      if (!editFormData.class || String(editFormData.class).trim() === '') {
+        errors.push({ field: 'class', message: 'Class is required' });
+      }
+      if (!editFormData.section || String(editFormData.section).trim() === '') {
+        errors.push({ field: 'section', message: 'Section is required' });
+      }
+    }
+
+    // Check for duplicates within Excel (excluding current row)
+    const otherRows = updatedRows.filter(r => r.rowIndex !== editingRow.rowIndex);
+
+    // Email duplicates
+    const emailDuplicates = otherRows.filter(r =>
+      r.data.email && r.data.email.toLowerCase().trim() === editFormData.email?.toLowerCase().trim()
+    );
+    if (emailDuplicates.length > 0) {
+      errors.push({
+        field: 'email',
+        message: `Duplicate email in Excel file (also in rows: ${emailDuplicates.map(r => r.rowIndex).join(', ')})`
+      });
+    }
+
+    // Phone duplicates
+    const phoneDuplicates = otherRows.filter(r =>
+      r.data.phone && String(r.data.phone).trim() === String(editFormData.phone).trim()
+    );
+    if (phoneDuplicates.length > 0) {
+      errors.push({
+        field: 'phone',
+        message: `Duplicate phone number in Excel file (also in rows: ${phoneDuplicates.map(r => r.rowIndex).join(', ')})`
+      });
+    }
+
+    // Employee ID duplicates (faculty only)
+    if (type === 'faculty') {
+      const employeeIdDuplicates = otherRows.filter(r =>
+        r.data.employeeId && String(r.data.employeeId).trim() === String(editFormData.employeeId).trim()
+      );
+      if (employeeIdDuplicates.length > 0) {
+        errors.push({
+          field: 'employeeId',
+          message: `Duplicate employee ID in Excel file (also in rows: ${employeeIdDuplicates.map(r => r.rowIndex).join(', ')})`
+        });
+      }
+    }
+
+    // Roll number duplicates (student only)
+    if (type === 'student') {
+      const rollNumberDuplicates = otherRows.filter(r =>
+        r.data.rollNumber && String(r.data.rollNumber).trim() === String(editFormData.rollNumber).trim()
+      );
+      if (rollNumberDuplicates.length > 0) {
+        errors.push({
+          field: 'rollNumber',
+          message: `Duplicate roll number in Excel file (also in rows: ${rollNumberDuplicates.map(r => r.rowIndex).join(', ')})`
+        });
+      }
     }
 
     editedRow.hasErrors = errors.length > 0;
@@ -1055,9 +1163,12 @@ function StepSave({ type, typeColor, parsedData, importResults, isSaving }) {
         </h4>
         <ul className="list-disc list-inside text-sm text-blue-800 space-y-2 ml-6">
           <li>All imported users can now log in with their credentials</li>
-          <li>Default passwords: First 4 letters of name + Last 4 digits of phone</li>
-          <li>Example: "John Doe" with phone "9876543210" → Password: "john3210"</li>
-          <li>Advise users to change their password after first login</li>
+          <li>Default passwords: First 4 letters of FIRST NAME + Last 4 digits of phone</li>
+          <li>Titles (Mr., Dr., Ms., etc.) are automatically removed</li>
+          <li>Examples:</li>
+          <li className="ml-6">→ "Dr. Meera Iyer" + "9123456780" = Password: "meer6780"</li>
+          <li className="ml-6">→ "Mr. John Doe" + "9876543210" = Password: "john3210"</li>
+          <li>⚠️ Advise all users to change their password after first login</li>
           {type === 'student' && <li>Students can be enrolled in sections from Admin Panel</li>}
           {type === 'faculty' && <li>Faculty can be assigned to sections from Admin Panel</li>}
         </ul>
