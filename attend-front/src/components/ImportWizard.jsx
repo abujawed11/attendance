@@ -520,12 +520,94 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
     return validationResults.find(v => v.rowIndex === rowIndex);
   };
 
+  // Helper function to revalidate all duplicate errors across all rows
+  const revalidateDuplicates = (rows, validationResults) => {
+    const institutionType = parsedData?.institutionType;
+    const isSchoolStudent = type === 'student' && institutionType === 'SCHOOL';
+
+    // Clear all duplicate-related errors first
+    const clearedValidations = validationResults.map(v => ({
+      ...v,
+      errors: v.errors.filter(e => !e.message.includes('Duplicate') || e.message.includes('already exists in database')),
+      warnings: v.warnings
+    }));
+
+    // Re-check duplicates for all rows
+    rows.forEach((currentRow, index) => {
+      const validation = clearedValidations.find(v => v.rowIndex === currentRow.rowIndex);
+      if (!validation) return;
+
+      const otherRows = rows.filter(r => r.rowIndex !== currentRow.rowIndex);
+
+      // Email duplicates (only for faculty and college students)
+      if (!isSchoolStudent && currentRow.data.email) {
+        const emailDuplicates = otherRows.filter(r =>
+          r.data.email && r.data.email.toLowerCase().trim() === currentRow.data.email.toLowerCase().trim()
+        );
+        if (emailDuplicates.length > 0) {
+          validation.errors.push({
+            field: 'email',
+            message: `Duplicate email in Excel file (also in rows: ${emailDuplicates.map(r => r.rowIndex).join(', ')})`
+          });
+        }
+      }
+
+      // Phone duplicates (only for faculty and college students)
+      if (!isSchoolStudent && currentRow.data.phone) {
+        const phoneDuplicates = otherRows.filter(r =>
+          r.data.phone && String(r.data.phone).trim() === String(currentRow.data.phone).trim()
+        );
+        if (phoneDuplicates.length > 0) {
+          validation.errors.push({
+            field: 'phone',
+            message: `Duplicate phone number in Excel file (also in rows: ${phoneDuplicates.map(r => r.rowIndex).join(', ')})`
+          });
+        }
+      }
+
+      // Employee ID duplicates (faculty only)
+      if (type === 'faculty' && currentRow.data.employeeId) {
+        const employeeIdDuplicates = otherRows.filter(r =>
+          r.data.employeeId && String(r.data.employeeId).trim() === String(currentRow.data.employeeId).trim()
+        );
+        if (employeeIdDuplicates.length > 0) {
+          validation.errors.push({
+            field: 'employeeId',
+            message: `Duplicate employee ID in Excel file (also in rows: ${employeeIdDuplicates.map(r => r.rowIndex).join(', ')})`
+          });
+        }
+      }
+
+      // Roll number duplicates (student only)
+      if (type === 'student' && currentRow.data.rollNumber) {
+        const rollNumberDuplicates = otherRows.filter(r =>
+          r.data.rollNumber && String(r.data.rollNumber).trim() === String(currentRow.data.rollNumber).trim()
+        );
+        if (rollNumberDuplicates.length > 0) {
+          validation.errors.push({
+            field: 'rollNumber',
+            message: `Duplicate roll number in Excel file (also in rows: ${rollNumberDuplicates.map(r => r.rowIndex).join(', ')})`
+          });
+        }
+      }
+
+      // Update row error status
+      currentRow.hasErrors = validation.errors.length > 0;
+      currentRow.hasWarnings = validation.warnings.length > 0;
+    });
+
+    return clearedValidations;
+  };
+
   const handleDeleteRow = (rowIndex) => {
     if (!confirm('Are you sure you want to delete this row?')) return;
 
     // Remove the row from parsedData
     const updatedRows = parsedData.rows.filter(r => r.rowIndex !== rowIndex);
-    const updatedValidationResults = parsedData.validationResults.filter(v => v.rowIndex !== rowIndex);
+    let updatedValidationResults = parsedData.validationResults.filter(v => v.rowIndex !== rowIndex);
+
+    // Revalidate duplicates for all remaining rows
+    updatedValidationResults = revalidateDuplicates(updatedRows, updatedValidationResults);
 
     // Recalculate stats
     const newStats = {
@@ -758,8 +840,8 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
     editedRow.hasErrors = errors.length > 0;
     editedRow.hasWarnings = warnings.length > 0;
 
-    // Update validation results
-    const updatedValidationResults = parsedData.validationResults.map(v => {
+    // Update validation results for edited row
+    let updatedValidationResults = parsedData.validationResults.map(v => {
       if (v.rowIndex === editingRow.rowIndex) {
         return {
           ...v,
@@ -769,6 +851,9 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
       }
       return v;
     });
+
+    // Revalidate duplicates for ALL rows (to clear duplicate errors on other rows)
+    updatedValidationResults = revalidateDuplicates(updatedRows, updatedValidationResults);
 
     // Recalculate stats
     const newStats = {
@@ -826,7 +911,10 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
 
     // Remove selected rows
     const updatedRows = parsedData.rows.filter(r => !selectedRows.has(r.rowIndex));
-    const updatedValidationResults = parsedData.validationResults.filter(v => !selectedRows.has(v.rowIndex));
+    let updatedValidationResults = parsedData.validationResults.filter(v => !selectedRows.has(v.rowIndex));
+
+    // Revalidate duplicates for all remaining rows
+    updatedValidationResults = revalidateDuplicates(updatedRows, updatedValidationResults);
 
     // Recalculate stats
     const newStats = {
@@ -864,7 +952,10 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
 
     // Remove duplicate rows
     const updatedRows = parsedData.rows.filter(r => !duplicateRowIndices.includes(r.rowIndex));
-    const updatedValidationResults = parsedData.validationResults.filter(v => !duplicateRowIndices.includes(v.rowIndex));
+    let updatedValidationResults = parsedData.validationResults.filter(v => !duplicateRowIndices.includes(v.rowIndex));
+
+    // Revalidate duplicates for all remaining rows
+    updatedValidationResults = revalidateDuplicates(updatedRows, updatedValidationResults);
 
     // Recalculate stats
     const newStats = {
@@ -898,17 +989,20 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
 
     // Remove all rows with errors
     const updatedRows = parsedData.rows.filter(r => !r.hasErrors);
-    const updatedValidationResults = parsedData.validationResults.filter(v => {
+    let updatedValidationResults = parsedData.validationResults.filter(v => {
       const row = parsedData.rows.find(r => r.rowIndex === v.rowIndex);
       return row && !row.hasErrors;
     });
+
+    // Revalidate duplicates for all remaining rows
+    updatedValidationResults = revalidateDuplicates(updatedRows, updatedValidationResults);
 
     // Recalculate stats
     const newStats = {
       total: updatedRows.length,
       valid: updatedRows.filter(r => !r.hasErrors && !r.hasWarnings).length,
       withWarnings: updatedRows.filter(r => r.hasWarnings && !r.hasErrors).length,
-      withErrors: 0
+      withErrors: updatedRows.filter(r => r.hasErrors).length // Recalculate instead of hardcoding 0
     };
 
     setParsedData({
