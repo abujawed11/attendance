@@ -1099,7 +1099,7 @@ async function saveImportData(req, res) {
 /**
  * Import a single faculty record (upsert)
  */
-async function importFacultyRecord(rowData, institutionId, institutionType, institution, results) {
+async function importFacultyRecord(rowData, institutionId, institutionType, institution, results, isManualAdd = false) {
   const bcrypt = require('bcrypt');
 
   // Generate default password using helper function
@@ -1116,7 +1116,17 @@ async function importFacultyRecord(rowData, institutionId, institutionType, inst
   });
 
   if (existingUser) {
-    // Update existing user
+    // Check if the existing user belongs to a different institution
+    if (existingUser.institutionId !== institutionId) {
+      throw new Error(`Email already exists in another institution`);
+    }
+
+    // For manual add, don't allow duplicates - throw error
+    if (isManualAdd) {
+      throw new Error(`Email already exists in your institution (User: ${existingUser.fullName})`);
+    }
+
+    // For Excel import, update the existing user
     const updateData = {
       fullName: rowData.fullName,
       phone: String(rowData.phone),
@@ -1215,7 +1225,7 @@ async function importFacultyRecord(rowData, institutionId, institutionType, inst
 /**
  * Import a single student record (upsert)
  */
-async function importStudentRecord(rowData, institutionId, institutionType, institution, results) {
+async function importStudentRecord(rowData, institutionId, institutionType, institution, results, isManualAdd = false) {
   const bcrypt = require('bcrypt');
 
   // Parse date of birth
@@ -1363,7 +1373,17 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
     });
 
     if (existingUser) {
-      // Update existing user
+      // Check if the existing user belongs to a different institution
+      if (existingUser.institutionId !== institutionId) {
+        throw new Error(`Email already exists in another institution`);
+      }
+
+      // For manual add, don't allow duplicates - throw error
+      if (isManualAdd) {
+        throw new Error(`Email already exists in your institution (User: ${existingUser.fullName})`);
+      }
+
+      // For Excel import, update existing user
       await prisma.user.update({
         where: { id: existingUser.id },
         data: {
@@ -1462,9 +1482,9 @@ async function addUsersManually(req, res) {
 
       try {
         if (type === 'faculty') {
-          await importFacultyRecord(userData, institutionId, institutionType, institution, results);
+          await importFacultyRecord(userData, institutionId, institutionType, institution, results, true); // isManualAdd = true
         } else if (type === 'student') {
-          await importStudentRecord(userData, institutionId, institutionType, institution, results);
+          await importStudentRecord(userData, institutionId, institutionType, institution, results, true); // isManualAdd = true
         }
       } catch (error) {
         console.error(`Error processing row ${rowIndex}:`, error);

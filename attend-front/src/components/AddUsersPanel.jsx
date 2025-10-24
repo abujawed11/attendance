@@ -4,6 +4,7 @@ export default function AddUsersPanel({ type, onClose, institutionType }) {
   const [rows, setRows] = useState([createEmptyRow()]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveResults, setSaveResults] = useState(null);
+  const [rowErrors, setRowErrors] = useState({}); // Store errors per row: { rowId: { field: 'error message' } }
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
   const typeLabel = type === 'faculty' ? 'Faculty' : 'Student';
@@ -73,60 +74,149 @@ export default function AddUsersPanel({ type, onClose, institutionType }) {
     setRows(rows.map(row =>
       row.id === id ? { ...row, [field]: value } : row
     ));
+
+    // Clear error for this field when user starts typing
+    if (rowErrors[id]?.[field]) {
+      setRowErrors(prev => ({
+        ...prev,
+        [id]: {
+          ...prev[id],
+          [field]: null
+        }
+      }));
+    }
   };
 
   const validateRows = () => {
-    const errors = [];
+    const newErrors = {};
+    let hasErrors = false;
 
-    rows.forEach((row, index) => {
-      const rowErrors = [];
+    rows.forEach((row) => {
+      const errors = {};
 
       // Common validations
-      if (!row.fullName?.trim()) rowErrors.push('Full Name is required');
-      if (!row.dateOfBirth?.trim()) rowErrors.push('Date of Birth is required');
+      if (!row.fullName?.trim()) {
+        errors.fullName = 'Full Name is required';
+        hasErrors = true;
+      }
+      if (!row.dateOfBirth?.trim()) {
+        errors.dateOfBirth = 'Date of Birth is required';
+        hasErrors = true;
+      }
 
       if (type === 'faculty') {
-        if (!row.email?.trim()) rowErrors.push('Email is required');
-        if (!row.phone?.trim()) rowErrors.push('Phone is required');
-        if (!row.employeeId?.trim()) rowErrors.push('Employee ID is required');
-        if (!row.department?.trim()) rowErrors.push('Department is required');
-        if (!row.designation?.trim()) rowErrors.push('Designation is required');
-        if (!row.qualification?.trim()) rowErrors.push('Qualification is required');
+        if (!row.email?.trim()) {
+          errors.email = 'Email is required';
+          hasErrors = true;
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
+          errors.email = 'Invalid email format';
+          hasErrors = true;
+        }
+        if (!row.phone?.trim()) {
+          errors.phone = 'Phone is required';
+          hasErrors = true;
+        } else if (!/^\d{10}$/.test(row.phone.replace(/\s/g, ''))) {
+          errors.phone = 'Phone must be 10 digits';
+          hasErrors = true;
+        }
+        if (!row.employeeId?.trim()) {
+          errors.employeeId = 'Employee ID is required';
+          hasErrors = true;
+        }
+        if (!row.department?.trim()) {
+          errors.department = 'Department is required';
+          hasErrors = true;
+        }
+        if (!row.designation?.trim()) {
+          errors.designation = 'Designation is required';
+          hasErrors = true;
+        }
+        if (!row.qualification?.trim()) {
+          errors.qualification = 'Qualification is required';
+          hasErrors = true;
+        }
       } else {
         // Student validations
-        if (!row.rollNumber?.trim()) rowErrors.push('Roll Number is required');
+        if (!row.rollNumber?.trim()) {
+          errors.rollNumber = 'Roll Number is required';
+          hasErrors = true;
+        }
 
         if (institutionType === 'SCHOOL') {
-          if (!row.class?.trim()) rowErrors.push('Class is required');
-          if (!row.section?.trim()) rowErrors.push('Section is required');
-          if (!row.parentName?.trim()) rowErrors.push('Parent Name is required');
-          if (!row.parentEmail?.trim()) rowErrors.push('Parent Email is required');
-          if (!row.parentPhone?.trim()) rowErrors.push('Parent Phone is required');
+          if (!row.class?.trim()) {
+            errors.class = 'Class is required';
+            hasErrors = true;
+          }
+          if (!row.section?.trim()) {
+            errors.section = 'Section is required';
+            hasErrors = true;
+          }
+          if (!row.parentName?.trim()) {
+            errors.parentName = 'Parent Name is required';
+            hasErrors = true;
+          }
+          if (!row.parentEmail?.trim()) {
+            errors.parentEmail = 'Parent Email is required';
+            hasErrors = true;
+          } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.parentEmail)) {
+            errors.parentEmail = 'Invalid email format';
+            hasErrors = true;
+          }
+          if (!row.parentPhone?.trim()) {
+            errors.parentPhone = 'Parent Phone is required';
+            hasErrors = true;
+          } else if (!/^\d{10}$/.test(row.parentPhone.replace(/\s/g, ''))) {
+            errors.parentPhone = 'Phone must be 10 digits';
+            hasErrors = true;
+          }
         } else {
-          if (!row.email?.trim()) rowErrors.push('Email is required');
-          if (!row.phone?.trim()) rowErrors.push('Phone is required');
-          if (!row.department?.trim()) rowErrors.push('Department is required');
-          if (!row.yearOfStudy?.trim()) rowErrors.push('Year of Study is required');
-          if (!row.semester?.trim()) rowErrors.push('Semester is required');
+          if (!row.email?.trim()) {
+            errors.email = 'Email is required';
+            hasErrors = true;
+          } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
+            errors.email = 'Invalid email format';
+            hasErrors = true;
+          }
+          if (!row.phone?.trim()) {
+            errors.phone = 'Phone is required';
+            hasErrors = true;
+          } else if (!/^\d{10}$/.test(row.phone.replace(/\s/g, ''))) {
+            errors.phone = 'Phone must be 10 digits';
+            hasErrors = true;
+          }
+          if (!row.department?.trim()) {
+            errors.department = 'Department is required';
+            hasErrors = true;
+          }
+          if (!row.yearOfStudy?.trim()) {
+            errors.yearOfStudy = 'Year of Study is required';
+            hasErrors = true;
+          }
+          if (!row.semester?.trim()) {
+            errors.semester = 'Semester is required';
+            hasErrors = true;
+          }
         }
       }
 
-      if (rowErrors.length > 0) {
-        errors.push({ row: index + 1, errors: rowErrors });
+      if (Object.keys(errors).length > 0) {
+        newErrors[row.id] = errors;
       }
     });
 
-    return errors;
+    setRowErrors(newErrors);
+    return hasErrors;
   };
 
   const handleSave = async () => {
-    const validationErrors = validateRows();
+    // Clear previous errors
+    setRowErrors({});
 
-    if (validationErrors.length > 0) {
-      const errorMessage = validationErrors.map(e =>
-        `Row ${e.row}: ${e.errors.join(', ')}`
-      ).join('\n');
-      alert(`Please fix the following errors:\n\n${errorMessage}`);
+    // Validate all rows
+    const hasErrors = validateRows();
+
+    if (hasErrors) {
+      alert('Please fix the validation errors shown below each field');
       return;
     }
 
@@ -151,13 +241,58 @@ export default function AddUsersPanel({ type, onClose, institutionType }) {
         }),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to save users');
+        throw new Error(result.message || 'Failed to save users');
       }
 
-      const result = await response.json();
-      setSaveResults(result.data);
+      // Check if there are any errors from backend
+      if (result.data.errors && result.data.errors.length > 0) {
+        // Map backend errors to row errors
+        const newRowErrors = {};
+
+        result.data.errors.forEach(err => {
+          const rowIndex = err.row - 1; // Backend sends 1-based row numbers
+          const row = rows[rowIndex];
+
+          if (row) {
+            // Parse error message to determine which field has the error
+            const errorMsg = err.error.toLowerCase();
+
+            if (!newRowErrors[row.id]) {
+              newRowErrors[row.id] = {};
+            }
+
+            // Match error message to field
+            if (errorMsg.includes('email') && errorMsg.includes('already exists')) {
+              newRowErrors[row.id].email = 'Email already exists';
+            } else if (errorMsg.includes('email')) {
+              newRowErrors[row.id].email = err.error;
+            } else if (errorMsg.includes('phone')) {
+              newRowErrors[row.id].phone = err.error;
+            } else if (errorMsg.includes('employee') || errorMsg.includes('employeeid')) {
+              newRowErrors[row.id].employeeId = 'Employee ID already exists';
+            } else if (errorMsg.includes('roll') || errorMsg.includes('registration')) {
+              newRowErrors[row.id].rollNumber = err.error;
+            } else {
+              // Generic error - show on fullName field or first field
+              newRowErrors[row.id].fullName = err.error;
+            }
+          }
+        });
+
+        setRowErrors(newRowErrors);
+        alert(`Some records failed to save. Please check the errors shown below each field.`);
+
+        // If some records succeeded, show partial success
+        if (result.data.created > 0 || result.data.updated > 0) {
+          alert(`✅ ${result.data.created + result.data.updated} users saved successfully.\n❌ ${result.data.failed} failed (see errors below).`);
+        }
+      } else {
+        // All successful
+        setSaveResults(result.data);
+      }
     } catch (error) {
       console.error('Save error:', error);
       alert(`Failed to save users: ${error.message}`);
@@ -305,6 +440,7 @@ export default function AddUsersPanel({ type, onClose, institutionType }) {
                 onFieldChange={handleFieldChange}
                 onRemove={handleRemoveRow}
                 canRemove={rows.length > 1}
+                errors={rowErrors[row.id] || {}}
               />
             ))}
 
@@ -345,7 +481,7 @@ export default function AddUsersPanel({ type, onClose, institutionType }) {
 }
 
 // Individual row form component
-function RowForm({ row, index, type, institutionType, onFieldChange, onRemove, canRemove }) {
+function RowForm({ row, index, type, institutionType, onFieldChange, onRemove, canRemove, errors }) {
   // Dropdown options
   const SCHOOL_DEPARTMENTS = ['English', 'Physics', 'Chemistry', 'Mathematics', 'Biology', 'History', 'Geography', 'Economics', 'Computer Science', 'Physical Education'];
 
@@ -407,6 +543,9 @@ function RowForm({ row, index, type, institutionType, onFieldChange, onRemove, c
   ];
 
   const renderField = (label, field, fieldType = 'text', options = null) => {
+    const hasError = errors[field];
+    const borderClass = hasError ? 'border-red-500' : 'border-gray-300';
+
     if (options) {
       return (
         <div className="flex-1 min-w-[200px]">
@@ -414,13 +553,16 @@ function RowForm({ row, index, type, institutionType, onFieldChange, onRemove, c
           <select
             value={row[field] || ''}
             onChange={(e) => onFieldChange(row.id, field, e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
           >
             <option value="">Select...</option>
             {options.map(opt => (
               <option key={opt} value={opt}>{opt}</option>
             ))}
           </select>
+          {hasError && (
+            <p className="text-xs text-red-600 mt-1">{hasError}</p>
+          )}
         </div>
       );
     }
@@ -432,9 +574,12 @@ function RowForm({ row, index, type, institutionType, onFieldChange, onRemove, c
           type={fieldType}
           value={row[field] || ''}
           onChange={(e) => onFieldChange(row.id, field, e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          className={`w-full px-3 py-2 border ${borderClass} rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
           placeholder={label}
         />
+        {hasError && (
+          <p className="text-xs text-red-600 mt-1">{hasError}</p>
+        )}
       </div>
     );
   };
