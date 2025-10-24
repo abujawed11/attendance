@@ -30,9 +30,6 @@ const FACULTY_FIELD_MAP = {
   'Subject': 'subject',
   'subject': 'subject',
   'subjects': 'subject',
-  'Joining Date': 'joiningDate',
-  'joiningdate': 'joiningDate',
-  'joindate': 'joiningDate',
 };
 
 const STUDENT_FIELD_MAP = {
@@ -103,7 +100,6 @@ const FACULTY_TEMPLATE = {
     'Designation*',
     'Qualification*',
     'Subject',
-    'Joining Date',
   ],
   example: [
     'John Doe',
@@ -114,7 +110,6 @@ const FACULTY_TEMPLATE = {
     'Assistant Professor',
     'M.Sc, B.Ed',
     'Algebra, Geometry',
-    '15-01-2020',
   ],
   instructions: [
     '⚠️ INSTRUCTIONS - READ CAREFULLY',
@@ -122,10 +117,9 @@ const FACULTY_TEMPLATE = {
     '1. Do not modify column headers (first row)',
     '2. Fill data starting from row 3 (remove this example row)',
     '3. Fields marked with * are mandatory',
-    '4. Date format: DD-MM-YYYY or DD/MM/YYYY (e.g., 15-01-2020, 15/01/2020, 5-9-2022)',
-    '5. Phone: 10 digits without spaces',
-    '6. Email must be unique',
-    '7. Employee ID must be unique within your institution',
+    '4. Phone: 10 digits without spaces',
+    '5. Email must be unique',
+    '6. Employee ID must be unique within your institution',
     '',
     'For School: Department = Subject (English, Math, Science, etc.)',
     'For College: Department = CSE, Mechanical, Civil, etc.',
@@ -260,18 +254,7 @@ async function generateFacultyTemplate(req, res) {
       { wch: 25 }, // Designation
       { wch: 20 }, // Qualification
       { wch: 30 }, // Subject
-      { wch: 15 }, // Joining Date
     ];
-
-    // Format date columns as Text to preserve DD-MM-YYYY format
-    // Column H is Joining Date (index 8, 0-based)
-    const range = xlsx.utils.decode_range(ws['!ref']);
-    for (let row = 1; row <= range.e.r; row++) {
-      const cellAddress = xlsx.utils.encode_cell({ r: row, c: 8 }); // Column H (Joining Date)
-      if (ws[cellAddress]) {
-        ws[cellAddress].z = '@'; // Text format
-      }
-    }
 
     // Add to workbook
     xlsx.utils.book_append_sheet(wb, ws, 'Faculty Data');
@@ -572,13 +555,6 @@ async function validateFacultyRow(rowData, rowIndex, institutionId, institutionT
     errors.push({ field: 'qualification', message: 'Qualification is required' });
   }
 
-  // Date validation
-  if (rowData.joiningDate) {
-    const parsedDate = validateDate(rowData.joiningDate);
-    if (!parsedDate) {
-      warnings.push({ field: 'joiningDate', message: 'Invalid date format. Use DD-MM-YYYY' });
-    }
-  }
 
   // Database validations (check duplicates) - ALL ARE ERRORS NOW
   if (rowData.email && validateEmail(rowData.email)) {
@@ -1107,15 +1083,6 @@ async function importFacultyRecord(rowData, institutionId, institutionType, inst
   const defaultPassword = generateDefaultPassword(rowData.fullName, rowData.phone);
   const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
-  // Parse joining date if provided
-  let joiningDate = null;
-  if (rowData.joiningDate) {
-    const parsed = validateDate(rowData.joiningDate);
-    if (parsed) {
-      joiningDate = parsed;
-    }
-  }
-
   // Check if user exists by email
   const existingUser = await prisma.user.findUnique({
     where: { email: rowData.email },
@@ -1142,13 +1109,11 @@ async function importFacultyRecord(rowData, institutionId, institutionType, inst
             employeeId: String(rowData.employeeId),
             department: rowData.department,
             qualification: rowData.qualification,
-            joiningDate: joiningDate,
           },
           update: {
             employeeId: String(rowData.employeeId),
             department: rowData.department,
             qualification: rowData.qualification,
-            joiningDate: joiningDate,
           }
         }
       };
@@ -1162,14 +1127,12 @@ async function importFacultyRecord(rowData, institutionId, institutionType, inst
             department: rowData.department,
             designation: rowData.designation,
             qualification: rowData.qualification,
-            joiningDate: joiningDate,
           },
           update: {
             employeeId: String(rowData.employeeId),
             department: rowData.department,
             designation: rowData.designation,
             qualification: rowData.qualification,
-            joiningDate: joiningDate,
           }
         }
       };
@@ -1204,7 +1167,6 @@ async function importFacultyRecord(rowData, institutionId, institutionType, inst
           employeeId: String(rowData.employeeId),
           department: rowData.department,
           qualification: rowData.qualification,
-          joiningDate: joiningDate,
         }
       };
     } else {
@@ -1216,7 +1178,6 @@ async function importFacultyRecord(rowData, institutionId, institutionType, inst
           department: rowData.department,
           designation: rowData.designation,
           qualification: rowData.qualification,
-          joiningDate: joiningDate,
         }
       };
     }
