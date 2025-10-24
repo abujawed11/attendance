@@ -36,33 +36,51 @@ const FACULTY_FIELD_MAP = {
 };
 
 const STUDENT_FIELD_MAP = {
+  // Common fields
   'Full Name*': 'fullName',
   'fullname': 'fullName',
   'name': 'fullName',
+  'Date of Birth*': 'dateOfBirth',
+  'dateofbirth': 'dateOfBirth',
+  'dob': 'dateOfBirth',
+
+  // College student fields
   'Email*': 'email',
   'email': 'email',
   'Phone*': 'phone',
   'phone': 'phone',
   'contact': 'phone',
+  'Roll No/Reg No*': 'rollNumber',
+  'rollno': 'rollNumber',
+  'regno': 'rollNumber',
+  'registration': 'rollNumber',
+  'Department*': 'department',
+  'department': 'department',
+  'dept': 'department',
+  'Year of Study*': 'yearOfStudy',
+  'yearofstudy': 'yearOfStudy',
+  'year': 'yearOfStudy',
+  'Semester*': 'semester',
+  'semester': 'semester',
+  'sem': 'semester',
+
+  // School student fields
   'Roll Number*': 'rollNumber',
   'rollnumber': 'rollNumber',
   'roll': 'rollNumber',
-  'Date of Birth*': 'dateOfBirth',
-  'dateofbirth': 'dateOfBirth',
-  'dob': 'dateOfBirth',
   'Class*': 'class',
   'class': 'class',
   'Section*': 'section',
   'section': 'section',
-  'Department': 'department',
-  'department': 'department',
-  'dept': 'department',
-  'Year of Study': 'yearOfStudy',
-  'yearofstudy': 'yearOfStudy',
-  'year': 'yearOfStudy',
-  'Semester': 'semester',
-  'semester': 'semester',
-  'sem': 'semester',
+  'Parent Name*': 'parentName',
+  'parentname': 'parentName',
+  'guardian': 'parentName',
+  'Parent Email*': 'parentEmail',
+  'parentemail': 'parentEmail',
+  'Parent Phone*': 'parentPhone',
+  'parentphone': 'parentPhone',
+
+  // Legacy guardian fields (for backwards compatibility)
   'Guardian Name': 'guardianName',
   'guardianname': 'guardianName',
   'Guardian Phone': 'guardianPhone',
@@ -120,61 +138,98 @@ const FACULTY_TEMPLATE = {
 /**
  * Student Template Structure
  */
-const STUDENT_TEMPLATE = {
+const STUDENT_SCHOOL_TEMPLATE = {
   headers: [
     'Full Name*',
-    'Email*',
-    'Phone*',
     'Roll Number*',
     'Date of Birth*',
     'Class*',
     'Section*',
-    'Department',
-    'Year of Study',
-    'Semester',
-    'Guardian Name',
-    'Guardian Phone',
-    'Guardian Relation',
+    'Parent Name*',
+    'Parent Email*',
+    'Parent Phone*',
   ],
   example: [
     'Alice Johnson',
-    'alice.j@student.school.edu',
-    '9876543210',
     '10A001',
     '15-01-2008',
     '10',
     'A',
-    '',
-    '',
-    '',
     'Robert Johnson',
+    'robert.j@parent.com',
     '9876543211',
-    'Father',
   ],
   instructions: [
-    '⚠️ INSTRUCTIONS - READ CAREFULLY',
+    '⚠️ SCHOOL STUDENT IMPORT - INSTRUCTIONS',
     '',
     '1. Do not modify column headers (first row)',
     '2. Fill data starting from row 3 (remove this example row)',
     '3. Fields marked with * are mandatory',
     '4. Date format: DD-MM-YYYY or DD/MM/YYYY (e.g., 15-01-2008, 15/01/2008, 5-9-2008)',
     '5. Phone: 10 digits without spaces',
-    '6. Email must be unique',
-    '7. Roll Number must be unique within your institution',
+    '6. Roll Number must be unique within your school',
     '',
-    'For School Students:',
-    '- Class: 1-12',
+    'Field Guidelines:',
+    '- Full Name: Student\'s complete name',
+    '- Roll Number: Unique identifier (e.g., 10A001, 12B015)',
+    '- Date of Birth: Student\'s DOB in DD-MM-YYYY format',
+    '- Class: 1 to 12',
     '- Section: A, B, C, etc.',
-    '- Leave Department, Year, Semester empty',
+    '- Parent Name: Primary guardian\'s full name',
+    '- Parent Email: Parent/Guardian email (unique)',
+    '- Parent Phone: 10-digit mobile number',
     '',
-    'For College Students:',
-    '- Class: Leave empty or use year name',
-    '- Department: CSE, Mechanical, Civil, etc.',
-    '- Year of Study: 1-4',
-    '- Semester: 1-8',
+    'Note: Students will NOT have email/phone. Only parent details are required.',
+    'Parent accounts will be automatically created and linked to students.',
+  ],
+};
+
+const STUDENT_COLLEGE_TEMPLATE = {
+  headers: [
+    'Full Name*',
+    'Email*',
+    'Phone*',
+    'Date of Birth*',
+    'Roll No/Reg No*',
+    'Department*',
+    'Year of Study*',
+    'Semester*',
+  ],
+  example: [
+    'Raj Kumar',
+    'raj.kumar@student.college.edu',
+    '9876543210',
+    '10-03-2003',
+    'CSE2023001',
+    'Computer Science',
+    '2',
+    '4',
+  ],
+  instructions: [
+    '⚠️ COLLEGE STUDENT IMPORT - INSTRUCTIONS',
     '',
-    'Guardian Information (optional but recommended):',
-    '- Guardian Name, Phone, Relation (Father/Mother/Guardian)',
+    '1. Do not modify column headers (first row)',
+    '2. Fill data starting from row 3 (remove this example row)',
+    '3. Fields marked with * are mandatory',
+    '4. Date format: DD-MM-YYYY or DD/MM/YYYY (e.g., 10-03-2003, 10/03/2003)',
+    '5. Phone: 10 digits without spaces',
+    '6. Email must be unique',
+    '7. Roll No/Reg No must be unique within your college',
+    '',
+    'Field Guidelines:',
+    '- Full Name: Student\'s complete name',
+    '- Email: Student\'s email address (will be used for login)',
+    '- Phone: Student\'s 10-digit mobile number',
+    '- Date of Birth: Student\'s DOB in DD-MM-YYYY format',
+    '- Roll No/Reg No: University registration/roll number (unique)',
+    '- Department: CSE, Mechanical, Civil, EEE, ECE, etc.',
+    '- Year of Study: 1, 2, 3, or 4',
+    '- Semester: 1 to 8',
+    '',
+    'Password Generation:',
+    '- First 4 letters of FIRST NAME + Last 4 digits of phone',
+    '- Example: "Raj Kumar" + "9876543210" = Password: "raj-3210"',
+    '- Students should change password after first login',
   ],
 };
 
@@ -252,41 +307,75 @@ async function generateFacultyTemplate(req, res) {
  */
 async function generateStudentTemplate(req, res) {
   try {
+    // Get admin's institution to determine type
+    const adminUser = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      include: {
+        institution: true,
+      },
+    });
+
+    if (!adminUser || !adminUser.institution) {
+      return res.status(400).json({
+        success: false,
+        message: 'Admin institution not found',
+      });
+    }
+
+    const institutionType = adminUser.institution.type; // SCHOOL or COLLEGE
+    const template = institutionType === 'SCHOOL' ? STUDENT_SCHOOL_TEMPLATE : STUDENT_COLLEGE_TEMPLATE;
+
     // Create workbook
     const wb = xlsx.utils.book_new();
 
     // Create worksheet with headers
     const wsData = [
-      STUDENT_TEMPLATE.headers,
-      STUDENT_TEMPLATE.example,
+      template.headers,
+      template.example,
     ];
 
     const ws = xlsx.utils.aoa_to_sheet(wsData);
 
-    // Set column widths
-    ws['!cols'] = [
-      { wch: 20 }, // Full Name
-      { wch: 30 }, // Email
-      { wch: 15 }, // Phone
-      { wch: 15 }, // Roll Number
-      { wch: 15 }, // Date of Birth
-      { wch: 10 }, // Class
-      { wch: 10 }, // Section
-      { wch: 25 }, // Department
-      { wch: 15 }, // Year of Study
-      { wch: 10 }, // Semester
-      { wch: 20 }, // Guardian Name
-      { wch: 15 }, // Guardian Phone
-      { wch: 15 }, // Guardian Relation
-    ];
+    // Set column widths based on institution type
+    if (institutionType === 'SCHOOL') {
+      ws['!cols'] = [
+        { wch: 20 }, // Full Name
+        { wch: 15 }, // Roll Number
+        { wch: 15 }, // Date of Birth
+        { wch: 10 }, // Class
+        { wch: 10 }, // Section
+        { wch: 20 }, // Parent Name
+        { wch: 30 }, // Parent Email
+        { wch: 15 }, // Parent Phone
+      ];
 
-    // Format date columns as Text to preserve DD-MM-YYYY format
-    // Column E is Date of Birth (index 4, 0-based)
-    const range = xlsx.utils.decode_range(ws['!ref']);
-    for (let row = 1; row <= range.e.r; row++) {
-      const cellAddress = xlsx.utils.encode_cell({ r: row, c: 4 }); // Column E (Date of Birth)
-      if (ws[cellAddress]) {
-        ws[cellAddress].z = '@'; // Text format
+      // Format date column (column C - index 2)
+      const range = xlsx.utils.decode_range(ws['!ref']);
+      for (let row = 1; row <= range.e.r; row++) {
+        const cellAddress = xlsx.utils.encode_cell({ r: row, c: 2 });
+        if (ws[cellAddress]) {
+          ws[cellAddress].z = '@'; // Text format
+        }
+      }
+    } else {
+      ws['!cols'] = [
+        { wch: 20 }, // Full Name
+        { wch: 30 }, // Email
+        { wch: 15 }, // Phone
+        { wch: 15 }, // Date of Birth
+        { wch: 20 }, // Roll No/Reg No
+        { wch: 25 }, // Department
+        { wch: 15 }, // Year of Study
+        { wch: 10 }, // Semester
+      ];
+
+      // Format date column (column D - index 3)
+      const range = xlsx.utils.decode_range(ws['!ref']);
+      for (let row = 1; row <= range.e.r; row++) {
+        const cellAddress = xlsx.utils.encode_cell({ r: row, c: 3 });
+        if (ws[cellAddress]) {
+          ws[cellAddress].z = '@'; // Text format
+        }
       }
     }
 
@@ -295,7 +384,7 @@ async function generateStudentTemplate(req, res) {
 
     // Create instructions sheet
     const instructionsWs = xlsx.utils.aoa_to_sheet(
-      STUDENT_TEMPLATE.instructions.map(line => [line])
+      template.instructions.map(line => [line])
     );
     instructionsWs['!cols'] = [{ wch: 80 }];
     xlsx.utils.book_append_sheet(wb, instructionsWs, 'Instructions');
@@ -304,8 +393,12 @@ async function generateStudentTemplate(req, res) {
     const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
     // Set headers
+    const filename = institutionType === 'SCHOOL'
+      ? 'school_student_import_template.xlsx'
+      : 'college_student_import_template.xlsx';
+
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename=student_import_template.xlsx');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
 
     res.send(buffer);
   } catch (error) {
@@ -543,21 +636,9 @@ async function validateStudentRow(rowData, rowIndex, institutionId, institutionT
   const errors = [];
   const warnings = [];
 
-  // Required field validation
+  // Common required fields
   if (!rowData.fullName || String(rowData.fullName).trim() === '') {
     errors.push({ field: 'fullName', message: 'Full Name is required' });
-  }
-
-  if (!rowData.email || String(rowData.email).trim() === '') {
-    errors.push({ field: 'email', message: 'Email is required' });
-  } else if (!validateEmail(rowData.email)) {
-    errors.push({ field: 'email', message: 'Invalid email format' });
-  }
-
-  if (!rowData.phone) {
-    errors.push({ field: 'phone', message: 'Phone is required' });
-  } else if (!validatePhone(rowData.phone)) {
-    errors.push({ field: 'phone', message: 'Phone must be 10 digits' });
   }
 
   if (!rowData.rollNumber || String(rowData.rollNumber).trim() === '') {
@@ -573,43 +654,94 @@ async function validateStudentRow(rowData, rowIndex, institutionId, institutionT
     }
   }
 
-  if (!rowData.class || String(rowData.class).trim() === '') {
-    errors.push({ field: 'class', message: 'Class is required' });
-  }
-
-  if (!rowData.section || String(rowData.section).trim() === '') {
-    errors.push({ field: 'section', message: 'Section is required' });
-  }
-
-  // Optional guardian phone validation
-  if (rowData.guardianPhone && !validatePhone(rowData.guardianPhone)) {
-    warnings.push({ field: 'guardianPhone', message: 'Guardian phone must be 10 digits' });
-  }
-
-  // Database validations - ALL ARE ERRORS NOW
-  if (rowData.email && validateEmail(rowData.email)) {
-    const existingUser = await prisma.user.findUnique({
-      where: { email: rowData.email }
-    });
-    if (existingUser) {
-      errors.push({ field: 'email', message: 'Email already exists in database' });
+  if (institutionType === 'SCHOOL') {
+    // School-specific validations
+    if (!rowData.class || String(rowData.class).trim() === '') {
+      errors.push({ field: 'class', message: 'Class is required' });
     }
-  }
 
-  if (rowData.phone) {
-    const existingPhone = await prisma.user.findFirst({
-      where: {
-        phone: String(rowData.phone).trim(),
-        institutionId: institutionId
+    if (!rowData.section || String(rowData.section).trim() === '') {
+      errors.push({ field: 'section', message: 'Section is required' });
+    }
+
+    // Parent info required for school students
+    if (!rowData.parentName || String(rowData.parentName).trim() === '') {
+      errors.push({ field: 'parentName', message: 'Parent Name is required' });
+    }
+
+    if (!rowData.parentEmail || String(rowData.parentEmail).trim() === '') {
+      errors.push({ field: 'parentEmail', message: 'Parent Email is required' });
+    } else if (!validateEmail(rowData.parentEmail)) {
+      errors.push({ field: 'parentEmail', message: 'Invalid parent email format' });
+    }
+
+    if (!rowData.parentPhone) {
+      errors.push({ field: 'parentPhone', message: 'Parent Phone is required' });
+    } else if (!validatePhone(rowData.parentPhone)) {
+      errors.push({ field: 'parentPhone', message: 'Parent phone must be 10 digits' });
+    }
+
+    // Check if parent email already exists
+    if (rowData.parentEmail && validateEmail(rowData.parentEmail)) {
+      const existingParent = await prisma.user.findUnique({
+        where: { email: rowData.parentEmail }
+      });
+      if (existingParent) {
+        errors.push({ field: 'parentEmail', message: 'Parent email already exists in database' });
       }
-    });
-    if (existingPhone) {
-      errors.push({ field: 'phone', message: 'Phone number already exists in database' });
+    }
+
+  } else if (institutionType === 'COLLEGE') {
+    // College-specific validations
+    if (!rowData.email || String(rowData.email).trim() === '') {
+      errors.push({ field: 'email', message: 'Email is required' });
+    } else if (!validateEmail(rowData.email)) {
+      errors.push({ field: 'email', message: 'Invalid email format' });
+    }
+
+    if (!rowData.phone) {
+      errors.push({ field: 'phone', message: 'Phone is required' });
+    } else if (!validatePhone(rowData.phone)) {
+      errors.push({ field: 'phone', message: 'Phone must be 10 digits' });
+    }
+
+    if (!rowData.department || String(rowData.department).trim() === '') {
+      errors.push({ field: 'department', message: 'Department is required' });
+    }
+
+    if (!rowData.yearOfStudy) {
+      errors.push({ field: 'yearOfStudy', message: 'Year of Study is required' });
+    }
+
+    if (!rowData.semester) {
+      errors.push({ field: 'semester', message: 'Semester is required' });
+    }
+
+    // Database validations for college students
+    if (rowData.email && validateEmail(rowData.email)) {
+      const existingUser = await prisma.user.findUnique({
+        where: { email: rowData.email }
+      });
+      if (existingUser) {
+        errors.push({ field: 'email', message: 'Email already exists in database' });
+      }
+    }
+
+    if (rowData.phone) {
+      const existingPhone = await prisma.user.findFirst({
+        where: {
+          phone: String(rowData.phone).trim(),
+          institutionId: institutionId
+        }
+      });
+      if (existingPhone) {
+        errors.push({ field: 'phone', message: 'Phone number already exists in database' });
+      }
     }
   }
 
+  // Check roll number in appropriate profile
   if (rowData.rollNumber) {
-    // Check the appropriate student profile model based on institution type
     let existingStudent = null;
     if (institutionType === 'SCHOOL') {
       existingStudent = await prisma.studentSchoolProfile.findFirst({
@@ -1102,125 +1234,198 @@ async function importFacultyRecord(rowData, institutionId, institutionType, inst
 async function importStudentRecord(rowData, institutionId, institutionType, institution, results) {
   const bcrypt = require('bcrypt');
 
-  // Generate default password using helper function
-  const defaultPassword = generateDefaultPassword(rowData.fullName, rowData.phone);
-  const hashedPassword = await bcrypt.hash(defaultPassword, 10);
-
   // Parse date of birth
   const dob = validateDate(rowData.dateOfBirth);
   if (!dob) {
     throw new Error('Invalid date of birth format');
   }
 
-  // Check if user exists by email
-  const existingUser = await prisma.user.findUnique({
-    where: { email: rowData.email },
-    include: {
-      studentSchoolProfile: true,
-      studentCollegeProfile: true
+  if (institutionType === 'SCHOOL') {
+    // For SCHOOL students: Create parent account and link student
+    // Parent uses their email for login, student doesn't have login credentials
+
+    // Check if parent already exists
+    let parentUser = await prisma.user.findUnique({
+      where: { email: rowData.parentEmail },
+      include: { parentProfile: true }
+    });
+
+    if (!parentUser) {
+      // Create parent user account
+      const parentPassword = generateDefaultPassword(rowData.parentName, rowData.parentPhone);
+      const hashedParentPassword = await bcrypt.hash(parentPassword, 10);
+      const parentPublicId = await getNextSequenceId('user');
+
+      parentUser = await prisma.user.create({
+        data: {
+          publicId: parentPublicId,
+          email: rowData.parentEmail,
+          password: hashedParentPassword,
+          fullName: rowData.parentName,
+          phone: String(rowData.parentPhone),
+          roleType: 'PARENT',
+          institutionId: institutionId,
+          parentProfile: {
+            create: {}
+          }
+        },
+        include: { parentProfile: true }
+      });
     }
-  });
 
-  if (existingUser) {
-    // Update existing user
-    const updateData = {
-      fullName: rowData.fullName,
-      phone: String(rowData.phone),
-    };
+    // Now create/update the student record (student doesn't have email/phone/password)
+    // Check if student exists by roll number
+    const existingStudent = await prisma.studentSchoolProfile.findFirst({
+      where: {
+        rollNo: String(rowData.rollNumber),
+        user: { institutionId }
+      },
+      include: { user: true }
+    });
 
-    // Update the appropriate student profile based on institution type
-    if (institutionType === 'SCHOOL') {
-      updateData.studentSchoolProfile = {
-        upsert: {
-          create: {
-            institutionType: 'SCHOOL',
-            schoolName: institution.name,
-            board: rowData.board || 'Not Specified',
-            class: rowData.class,
-            section: rowData.section,
-            rollNo: String(rowData.rollNumber),
-            dob: dob,
-          },
-          update: {
-            board: rowData.board || 'Not Specified',
-            class: rowData.class,
-            section: rowData.section,
-            rollNo: String(rowData.rollNumber),
-            dob: dob,
+    if (existingStudent) {
+      // Update existing student
+      await prisma.user.update({
+        where: { id: existingStudent.user.id },
+        data: {
+          fullName: rowData.fullName,
+          studentSchoolProfile: {
+            update: {
+              board: institution.board || 'Not Specified',
+              class: rowData.class,
+              section: rowData.section,
+              rollNo: String(rowData.rollNumber),
+              dob: dob,
+            }
           }
         }
-      };
-    } else {
-      updateData.studentCollegeProfile = {
-        upsert: {
-          create: {
-            institutionType: 'COLLEGE',
-            collegeName: institution.name,
-            department: rowData.department || 'General',
-            yearOfStudy: rowData.yearOfStudy ? parseInt(rowData.yearOfStudy) : 1,
-            semester: rowData.semester ? parseInt(rowData.semester) : 1,
-            regNo: String(rowData.rollNumber),
-          },
-          update: {
-            department: rowData.department || 'General',
-            yearOfStudy: rowData.yearOfStudy ? parseInt(rowData.yearOfStudy) : 1,
-            semester: rowData.semester ? parseInt(rowData.semester) : 1,
-            regNo: String(rowData.rollNumber),
+      });
+
+      // Ensure parent-student link exists
+      const existingLink = await prisma.studentGuardian.findUnique({
+        where: {
+          parentUserId_studentUserId: {
+            parentUserId: parentUser.id,
+            studentUserId: existingStudent.user.id
           }
         }
-      };
-    }
+      });
 
-    await prisma.user.update({
-      where: { id: existingUser.id },
-      data: updateData
-    });
-    results.updated++;
-  } else {
-    // Create new user
-    // Generate public ID
-    const publicId = await getNextSequenceId('user');
+      if (!existingLink) {
+        await prisma.studentGuardian.create({
+          data: {
+            parentUserId: parentUser.id,
+            studentUserId: existingStudent.user.id,
+            relation: 'Parent'
+          }
+        });
+      }
 
-    const createData = {
-      publicId,
-      email: rowData.email,
-      password: hashedPassword,
-      fullName: rowData.fullName,
-      phone: String(rowData.phone),
-      roleType: 'STUDENT',
-      institutionId: institutionId,
-    };
-
-    // Create the appropriate student profile based on institution type
-    if (institutionType === 'SCHOOL') {
-      createData.studentSchoolProfile = {
-        create: {
-          institutionType: 'SCHOOL',
-          schoolName: institution.name,
-          board: rowData.board || 'Not Specified',
-          class: rowData.class,
-          section: rowData.section,
-          rollNo: String(rowData.rollNumber),
-          dob: dob,
-        }
-      };
+      results.updated++;
     } else {
-      createData.studentCollegeProfile = {
-        create: {
-          institutionType: 'COLLEGE',
-          collegeName: institution.name,
-          department: rowData.department || 'General',
-          yearOfStudy: rowData.yearOfStudy ? parseInt(rowData.yearOfStudy) : 1,
-          semester: rowData.semester ? parseInt(rowData.semester) : 1,
-          regNo: String(rowData.rollNumber),
+      // Create new student (without email/password - they don't log in)
+      const studentPublicId = await getNextSequenceId('user');
+
+      const studentUser = await prisma.user.create({
+        data: {
+          publicId: studentPublicId,
+          email: `${rowData.rollNumber.toLowerCase()}@student.temp`, // Temp email for uniqueness
+          password: await bcrypt.hash('temp-password', 10), // Temp password (not used)
+          fullName: rowData.fullName,
+          roleType: 'STUDENT',
+          institutionId: institutionId,
+          studentSchoolProfile: {
+            create: {
+              institutionType: 'SCHOOL',
+              schoolName: institution.name,
+              board: institution.board || 'Not Specified',
+              class: rowData.class,
+              section: rowData.section,
+              rollNo: String(rowData.rollNumber),
+              dob: dob,
+            }
+          }
         }
-      };
+      });
+
+      // Link student to parent
+      await prisma.studentGuardian.create({
+        data: {
+          parentUserId: parentUser.id,
+          studentUserId: studentUser.id,
+          relation: 'Parent'
+        }
+      });
+
+      results.created++;
     }
 
-    await prisma.user.create({
-      data: createData
+  } else if (institutionType === 'COLLEGE') {
+    // For COLLEGE students: Create their own account with email/password
+    const defaultPassword = generateDefaultPassword(rowData.fullName, rowData.phone);
+    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+    // Check if user exists by email
+    const existingUser = await prisma.user.findUnique({
+      where: { email: rowData.email },
+      include: { studentCollegeProfile: true }
     });
-    results.created++;
+
+    if (existingUser) {
+      // Update existing user
+      await prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          fullName: rowData.fullName,
+          phone: String(rowData.phone),
+          studentCollegeProfile: {
+            upsert: {
+              create: {
+                institutionType: 'COLLEGE',
+                collegeName: institution.name,
+                department: rowData.department,
+                yearOfStudy: parseInt(rowData.yearOfStudy),
+                semester: parseInt(rowData.semester),
+                regNo: String(rowData.rollNumber),
+              },
+              update: {
+                department: rowData.department,
+                yearOfStudy: parseInt(rowData.yearOfStudy),
+                semester: parseInt(rowData.semester),
+                regNo: String(rowData.rollNumber),
+              }
+            }
+          }
+        }
+      });
+      results.updated++;
+    } else {
+      // Create new college student
+      const publicId = await getNextSequenceId('user');
+
+      await prisma.user.create({
+        data: {
+          publicId,
+          email: rowData.email,
+          password: hashedPassword,
+          fullName: rowData.fullName,
+          phone: String(rowData.phone),
+          roleType: 'STUDENT',
+          institutionId: institutionId,
+          studentCollegeProfile: {
+            create: {
+              institutionType: 'COLLEGE',
+              collegeName: institution.name,
+              department: rowData.department,
+              yearOfStudy: parseInt(rowData.yearOfStudy),
+              semester: parseInt(rowData.semester),
+              regNo: String(rowData.rollNumber),
+            }
+          }
+        }
+      });
+      results.created++;
+    }
   }
 }
 
