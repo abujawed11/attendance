@@ -25,10 +25,18 @@ export default function ImportWizard({ type, onClose }) {
       await parseUploadedFile();
     }
 
-    // Block moving from step 3 if there are errors
-    if (currentStep === 3 && parsedData && parsedData.stats.withErrors > 0) {
-      alert('Please fix all errors before proceeding. You can edit your Excel file and re-upload from Step 2.');
-      return;
+    // Block moving from step 3 if there are no rows
+    if (currentStep === 3 && parsedData) {
+      if (parsedData.stats.total === 0) {
+        alert('⚠️ No rows available to import!\n\nYou have deleted all rows. Please go back to Step 2 and upload a file with data.');
+        return;
+      }
+
+      // Block if there are errors
+      if (parsedData.stats.withErrors > 0) {
+        alert('Please fix all errors before proceeding. You can edit your Excel file and re-upload from Step 2.');
+        return;
+      }
     }
 
     // If moving from step 4 to step 5, save the data
@@ -535,9 +543,40 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
     });
   };
 
+  // Helper function to convert Excel serial number to DD-MM-YYYY format
+  const excelSerialToDate = (serial) => {
+    // Check if it's a number (Excel serial)
+    if (typeof serial === 'number' && serial > 1000) {
+      // Excel serial date starts from 1900-01-01
+      const excelEpoch = new Date(1900, 0, 1);
+      const daysOffset = serial - 2; // Excel incorrectly treats 1900 as a leap year
+      const date = new Date(excelEpoch.getTime() + daysOffset * 24 * 60 * 60 * 1000);
+
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+
+      return `${day}-${month}-${year}`;
+    }
+    // If it's already a string, return as is
+    return serial;
+  };
+
   const handleEditRow = (row) => {
     setEditingRow(row);
-    setEditFormData({ ...row.data });
+
+    // Convert Excel serial dates to readable format
+    const formattedData = { ...row.data };
+
+    // Convert date fields if they're Excel serial numbers
+    if (formattedData.dateOfBirth) {
+      formattedData.dateOfBirth = excelSerialToDate(formattedData.dateOfBirth);
+    }
+    if (formattedData.joiningDate) {
+      formattedData.joiningDate = excelSerialToDate(formattedData.joiningDate);
+    }
+
+    setEditFormData(formattedData);
   };
 
   const handleSaveEdit = () => {
@@ -1132,7 +1171,17 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
       </div>
 
       {/* Summary Message */}
-      {stats.withErrors > 0 ? (
+      {stats.total === 0 ? (
+        <div className="bg-orange-50 border border-orange-300 rounded-lg p-6 text-center">
+          <div className="text-5xl mb-3">📭</div>
+          <p className="text-lg font-semibold text-orange-900 mb-2">
+            ⚠️ No Rows Available!
+          </p>
+          <p className="text-sm text-orange-800">
+            You have deleted all rows from the import. Please go back to <strong>Step 2</strong> and upload a file with data.
+          </p>
+        </div>
+      ) : stats.withErrors > 0 ? (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-sm text-red-800">
             <span className="font-semibold">⚠️ Cannot proceed:</span> Please fix {stats.withErrors} row(s) with errors before continuing.
