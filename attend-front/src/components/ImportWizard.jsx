@@ -468,6 +468,7 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
   const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'valid', 'warnings', 'errors'
   const [editingRow, setEditingRow] = useState(null);
   const [editFormData, setEditFormData] = useState({});
+  const [selectedRows, setSelectedRows] = useState(new Set());
 
   if (isProcessing) {
     return (
@@ -714,6 +715,136 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
     setEditFormData({});
   };
 
+  // Selection handlers
+  const handleSelectAll = () => {
+    const allRowIndices = filteredRows.map(row => row.rowIndex);
+    setSelectedRows(new Set(allRowIndices));
+  };
+
+  const handleUnselectAll = () => {
+    setSelectedRows(new Set());
+  };
+
+  const handleToggleRow = (rowIndex) => {
+    const newSelected = new Set(selectedRows);
+    if (newSelected.has(rowIndex)) {
+      newSelected.delete(rowIndex);
+    } else {
+      newSelected.add(rowIndex);
+    }
+    setSelectedRows(newSelected);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedRows.size === 0) {
+      alert('No rows selected');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selectedRows.size} selected row(s)?`)) {
+      return;
+    }
+
+    // Remove selected rows
+    const updatedRows = parsedData.rows.filter(r => !selectedRows.has(r.rowIndex));
+    const updatedValidationResults = parsedData.validationResults.filter(v => !selectedRows.has(v.rowIndex));
+
+    // Recalculate stats
+    const newStats = {
+      total: updatedRows.length,
+      valid: updatedRows.filter(r => !r.hasErrors && !r.hasWarnings).length,
+      withWarnings: updatedRows.filter(r => r.hasWarnings && !r.hasErrors).length,
+      withErrors: updatedRows.filter(r => r.hasErrors).length
+    };
+
+    setParsedData({
+      ...parsedData,
+      rows: updatedRows,
+      validationResults: updatedValidationResults,
+      stats: newStats
+    });
+
+    // Clear selection
+    setSelectedRows(new Set());
+  };
+
+  const handleRemoveAllDuplicates = () => {
+    // Find all rows that have database duplicate errors
+    const duplicateRowIndices = parsedData.validationResults
+      .filter(v => v.errors.some(err => err.message.includes('already exists in database')))
+      .map(v => v.rowIndex);
+
+    if (duplicateRowIndices.length === 0) {
+      alert('No duplicate records found in the database. All records are new!');
+      return;
+    }
+
+    if (!confirm(`Found ${duplicateRowIndices.length} existing records in database. Do you want to remove them from import?\n\nThis will keep only NEW records that don't exist in the database yet.`)) {
+      return;
+    }
+
+    // Remove duplicate rows
+    const updatedRows = parsedData.rows.filter(r => !duplicateRowIndices.includes(r.rowIndex));
+    const updatedValidationResults = parsedData.validationResults.filter(v => !duplicateRowIndices.includes(v.rowIndex));
+
+    // Recalculate stats
+    const newStats = {
+      total: updatedRows.length,
+      valid: updatedRows.filter(r => !r.hasErrors && !r.hasWarnings).length,
+      withWarnings: updatedRows.filter(r => r.hasWarnings && !r.hasErrors).length,
+      withErrors: updatedRows.filter(r => r.hasErrors).length
+    };
+
+    setParsedData({
+      ...parsedData,
+      rows: updatedRows,
+      validationResults: updatedValidationResults,
+      stats: newStats
+    });
+
+    alert(`✅ Removed ${duplicateRowIndices.length} duplicate records. Remaining: ${updatedRows.length} records to import.`);
+  };
+
+  const handleRemoveAllInvalid = () => {
+    const invalidRowCount = stats.withErrors;
+
+    if (invalidRowCount === 0) {
+      alert('No invalid rows found. All rows are valid!');
+      return;
+    }
+
+    if (!confirm(`Found ${invalidRowCount} row(s) with errors. Do you want to remove all invalid rows?\n\nThis will keep only VALID records without any errors.`)) {
+      return;
+    }
+
+    // Remove all rows with errors
+    const updatedRows = parsedData.rows.filter(r => !r.hasErrors);
+    const updatedValidationResults = parsedData.validationResults.filter(v => {
+      const row = parsedData.rows.find(r => r.rowIndex === v.rowIndex);
+      return row && !row.hasErrors;
+    });
+
+    // Recalculate stats
+    const newStats = {
+      total: updatedRows.length,
+      valid: updatedRows.filter(r => !r.hasErrors && !r.hasWarnings).length,
+      withWarnings: updatedRows.filter(r => r.hasWarnings && !r.hasErrors).length,
+      withErrors: 0
+    };
+
+    setParsedData({
+      ...parsedData,
+      rows: updatedRows,
+      validationResults: updatedValidationResults,
+      stats: newStats
+    });
+
+    // Clear selection
+    setSelectedRows(new Set());
+
+    alert(`✅ Removed ${invalidRowCount} invalid records. Remaining: ${updatedRows.length} valid records.`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Statistics Header */}
@@ -733,6 +864,101 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
         <div className="bg-red-50 rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-red-600">{stats.withErrors}</div>
           <div className="text-sm text-gray-600">Errors</div>
+        </div>
+      </div>
+
+      {/* Bulk Actions Toolbar */}
+      <div className="bg-gray-50 border rounded-lg p-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <span className="font-semibold text-gray-700">Bulk Actions:</span>
+            <button
+              onClick={handleSelectAll}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm transition-colors"
+            >
+              ✓ Select All ({filteredRows.length})
+            </button>
+            <button
+              onClick={handleUnselectAll}
+              disabled={selectedRows.size === 0}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                selectedRows.size === 0
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-gray-600 text-white hover:bg-gray-700'
+              }`}
+            >
+              ✗ Unselect All
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              disabled={selectedRows.size === 0}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                selectedRows.size === 0
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-red-600 text-white hover:bg-red-700'
+              }`}
+            >
+              🗑️ Delete Selected ({selectedRows.size})
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleRemoveAllDuplicates}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm transition-colors"
+              title="Remove all records that already exist in database"
+            >
+              🔄 Remove All Duplicates
+            </button>
+            <button
+              onClick={handleRemoveAllInvalid}
+              disabled={stats.withErrors === 0}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                stats.withErrors === 0
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-orange-600 text-white hover:bg-orange-700'
+              }`}
+              title="Remove all rows with validation errors"
+            >
+              🚫 Remove All Invalid ({stats.withErrors})
+            </button>
+          </div>
+        </div>
+
+        {/* Selection Info */}
+        {selectedRows.size > 0 && (
+          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              <span className="font-semibold">📌 {selectedRows.size} row(s) selected</span>
+              {selectedRows.size === filteredRows.length && filteredRows.length < stats.total && (
+                <span> (from current filter)</span>
+              )}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Smart Actions Info */}
+      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-4">
+        <h4 className="font-semibold text-indigo-900 mb-2 flex items-center">
+          <span className="text-xl mr-2">✨</span>
+          Smart Actions Available
+        </h4>
+        <div className="grid md:grid-cols-2 gap-3 text-sm">
+          <div className="bg-white rounded-lg p-3">
+            <div className="font-semibold text-purple-700 mb-1">🔄 Remove All Duplicates</div>
+            <p className="text-gray-600 text-xs">
+              Automatically removes all records that already exist in the database.
+              Perfect when you want to import ONLY NEW records.
+            </p>
+          </div>
+          <div className="bg-white rounded-lg p-3">
+            <div className="font-semibold text-orange-700 mb-1">🚫 Remove All Invalid</div>
+            <p className="text-gray-600 text-xs">
+              Removes all rows with validation errors at once.
+              Keeps only clean, valid records ready to import.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -805,6 +1031,21 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
         <table className="w-full text-sm">
           <thead className="bg-gray-50 sticky top-0">
             <tr>
+              <th className="px-3 py-2 text-center font-medium text-gray-700 border-b w-12">
+                <input
+                  type="checkbox"
+                  checked={filteredRows.length > 0 && filteredRows.every(row => selectedRows.has(row.rowIndex))}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      handleSelectAll();
+                    } else {
+                      handleUnselectAll();
+                    }
+                  }}
+                  className="w-4 h-4 cursor-pointer"
+                  title="Select/Unselect all rows"
+                />
+              </th>
               <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Row</th>
               <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Status</th>
               <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Data Preview</th>
@@ -816,9 +1057,18 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
             {filteredRows.map((row, idx) => {
               const validation = getRowValidation(row.rowIndex);
               const hasIssues = validation && (validation.errors.length > 0 || validation.warnings.length > 0);
+              const isSelected = selectedRows.has(row.rowIndex);
 
               return (
-                <tr key={idx} className="border-b hover:bg-gray-50">
+                <tr key={idx} className={`border-b hover:bg-gray-50 ${isSelected ? 'bg-blue-50' : ''}`}>
+                  <td className="px-3 py-2 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleToggleRow(row.rowIndex)}
+                      className="w-4 h-4 cursor-pointer"
+                    />
+                  </td>
                   <td className="px-3 py-2 text-gray-600">{row.rowIndex}</td>
                   <td className="px-3 py-2">
                     {row.hasErrors ? (
