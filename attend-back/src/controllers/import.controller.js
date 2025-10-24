@@ -1,5 +1,6 @@
 const xlsx = require('xlsx');
 const prisma = require('../config/prisma');
+const { getNextSequenceId } = require('../utils/helpers');
 
 /**
  * Field Mapping Configuration
@@ -103,7 +104,7 @@ const FACULTY_TEMPLATE = {
     '1. Do not modify column headers (first row)',
     '2. Fill data starting from row 3 (remove this example row)',
     '3. Fields marked with * are mandatory',
-    '4. Date format: DD-MM-YYYY (e.g., 15-01-2020)',
+    '4. Date format: DD-MM-YYYY or DD/MM/YYYY (e.g., 15-01-2020, 15/01/2020, 5-9-2022)',
     '5. Phone: 10 digits without spaces',
     '6. Email must be unique',
     '7. Employee ID must be unique within your institution',
@@ -156,7 +157,7 @@ const STUDENT_TEMPLATE = {
     '1. Do not modify column headers (first row)',
     '2. Fill data starting from row 3 (remove this example row)',
     '3. Fields marked with * are mandatory',
-    '4. Date format: DD-MM-YYYY (e.g., 15-01-2008)',
+    '4. Date format: DD-MM-YYYY or DD/MM/YYYY (e.g., 15-01-2008, 15/01/2008, 5-9-2008)',
     '5. Phone: 10 digits without spaces',
     '6. Email must be unique',
     '7. Roll Number must be unique within your institution',
@@ -333,20 +334,46 @@ function validatePhone(phone) {
 function validateDate(dateStr) {
   if (!dateStr) return null;
 
-  // Parse DD-MM-YYYY format
-  const parts = String(dateStr).split(/[-\/]/);
+  // Handle Excel serial date numbers (days since 1900-01-01)
+  if (typeof dateStr === 'number') {
+    // Excel date serial number
+    const excelEpoch = new Date(1899, 11, 30); // December 30, 1899
+    const date = new Date(excelEpoch.getTime() + dateStr * 24 * 60 * 60 * 1000);
+    return date;
+  }
+
+  // Convert to string and trim
+  const dateString = String(dateStr).trim();
+
+  // Try to parse DD-MM-YYYY or DD/MM/YYYY format (with or without leading zeros)
+  // Accepts: 05-09-2022, 5-9-2022, 05/09/2022, 5/9/2022
+  const parts = dateString.split(/[-\/]/);
   if (parts.length !== 3) return null;
 
   const day = parseInt(parts[0], 10);
   const month = parseInt(parts[1], 10);
   const year = parseInt(parts[2], 10);
 
+  // Validate parsed numbers
   if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
   if (month < 1 || month > 12) return null;
   if (day < 1 || day > 31) return null;
-  if (year < 1900 || year > 2100) return null;
 
-  return new Date(year, month - 1, day);
+  // Handle 2-digit years (assume 20xx for 00-99)
+  let fullYear = year;
+  if (year < 100) {
+    fullYear = 2000 + year;
+  }
+
+  if (fullYear < 1900 || fullYear > 2100) return null;
+
+  // Create date and validate it's a real date (handles feb 30, etc)
+  const date = new Date(fullYear, month - 1, day);
+  if (date.getDate() !== day || date.getMonth() !== month - 1 || date.getFullYear() !== fullYear) {
+    return null; // Invalid date like Feb 30
+  }
+
+  return date;
 }
 
 /**
@@ -662,8 +689,333 @@ async function parseAndValidateFile(req, res) {
   }
 }
 
+/**
+ * Import Faculty/Students to Database
+ * POST /api/admin/import/save
+ */
+async function saveImportData(req, res) {
+  try {
+    const { type, rows } = req.body; // rows = array of valid row data
+    const institutionId = req.user.institutionId;
+    const institutionType = req.user.institution?.type;
+
+    if (!institutionId || !institutionType) {
+      return res.status(400).json({
+        success: false,
+        message: 'Institution information not found'
+      });
+    }
+
+    if (!rows || rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No data provided for import'
+      });
+    }
+
+    const results = {
+      created: 0,
+      updated: 0,
+      failed: 0,
+      errors: []
+    };
+
+    // Process each row
+    for (let i = 0; i < rows.length; i++) {
+      const rowData = rows[i];
+
+      try {
+        if (type === 'faculty') {
+          await importFacultyRecord(rowData, institutionId, institutionType, req.user.institution, results);
+        } else if (type === 'student') {
+          await importStudentRecord(rowData, institutionId, institutionType, req.user.institution, results);
+        }
+      } catch (error) {
+        results.failed++;
+        results.errors.push({
+          row: i + 1,
+          data: rowData,
+          error: error.message
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Import completed: ${results.created} created, ${results.updated} updated, ${results.failed} failed`,
+      results
+    });
+
+  } catch (error) {
+    console.error('Save import error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to save import data',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Import a single faculty record (upsert)
+ */
+async function importFacultyRecord(rowData, institutionId, institutionType, institution, results) {
+  const bcrypt = require('bcrypt');
+
+  // Generate default password (first 4 letters of name + last 4 digits of phone)
+  const namePart = rowData.fullName.replace(/\s/g, '').substring(0, 4).toLowerCase();
+  const phonePart = String(rowData.phone).slice(-4);
+  const defaultPassword = `${namePart}${phonePart}`;
+  const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+  // Parse joining date if provided
+  let joiningDate = null;
+  if (rowData.joiningDate) {
+    const parsed = validateDate(rowData.joiningDate);
+    if (parsed) {
+      joiningDate = parsed;
+    }
+  }
+
+  // Check if user exists by email
+  const existingUser = await prisma.user.findUnique({
+    where: { email: rowData.email },
+    include: {
+      facultySchoolProfile: true,
+      facultyCollegeProfile: true
+    }
+  });
+
+  if (existingUser) {
+    // Update existing user
+    const updateData = {
+      fullName: rowData.fullName,
+      phone: String(rowData.phone),
+    };
+
+    // Update the appropriate faculty profile based on institution type
+    if (institutionType === 'SCHOOL') {
+      updateData.facultySchoolProfile = {
+        upsert: {
+          create: {
+            institutionType: 'SCHOOL',
+            schoolName: institution.name,
+            employeeId: String(rowData.employeeId),
+            department: rowData.department,
+            qualification: rowData.qualification,
+          },
+          update: {
+            employeeId: String(rowData.employeeId),
+            department: rowData.department,
+            qualification: rowData.qualification,
+          }
+        }
+      };
+    } else {
+      updateData.facultyCollegeProfile = {
+        upsert: {
+          create: {
+            institutionType: 'COLLEGE',
+            collegeName: institution.name,
+            employeeId: String(rowData.employeeId),
+            department: rowData.department,
+            designation: rowData.designation,
+            qualification: rowData.qualification,
+          },
+          update: {
+            employeeId: String(rowData.employeeId),
+            department: rowData.department,
+            designation: rowData.designation,
+            qualification: rowData.qualification,
+          }
+        }
+      };
+    }
+
+    await prisma.user.update({
+      where: { id: existingUser.id },
+      data: updateData
+    });
+    results.updated++;
+  } else {
+    // Create new user
+    // Generate public ID
+    const publicId = await getNextSequenceId('user');
+
+    const createData = {
+      publicId,
+      email: rowData.email,
+      password: hashedPassword,
+      fullName: rowData.fullName,
+      phone: String(rowData.phone),
+      roleType: 'FACULTY',
+      institutionId: institutionId,
+    };
+
+    // Create the appropriate faculty profile based on institution type
+    if (institutionType === 'SCHOOL') {
+      createData.facultySchoolProfile = {
+        create: {
+          institutionType: 'SCHOOL',
+          schoolName: institution.name,
+          employeeId: String(rowData.employeeId),
+          department: rowData.department,
+          qualification: rowData.qualification,
+        }
+      };
+    } else {
+      createData.facultyCollegeProfile = {
+        create: {
+          institutionType: 'COLLEGE',
+          collegeName: institution.name,
+          employeeId: String(rowData.employeeId),
+          department: rowData.department,
+          designation: rowData.designation,
+          qualification: rowData.qualification,
+        }
+      };
+    }
+
+    await prisma.user.create({
+      data: createData
+    });
+    results.created++;
+  }
+}
+
+/**
+ * Import a single student record (upsert)
+ */
+async function importStudentRecord(rowData, institutionId, institutionType, institution, results) {
+  const bcrypt = require('bcrypt');
+
+  // Generate default password
+  const namePart = rowData.fullName.replace(/\s/g, '').substring(0, 4).toLowerCase();
+  const phonePart = String(rowData.phone).slice(-4);
+  const defaultPassword = `${namePart}${phonePart}`;
+  const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+  // Parse date of birth
+  const dob = validateDate(rowData.dateOfBirth);
+  if (!dob) {
+    throw new Error('Invalid date of birth format');
+  }
+
+  // Check if user exists by email
+  const existingUser = await prisma.user.findUnique({
+    where: { email: rowData.email },
+    include: {
+      studentSchoolProfile: true,
+      studentCollegeProfile: true
+    }
+  });
+
+  if (existingUser) {
+    // Update existing user
+    const updateData = {
+      fullName: rowData.fullName,
+      phone: String(rowData.phone),
+    };
+
+    // Update the appropriate student profile based on institution type
+    if (institutionType === 'SCHOOL') {
+      updateData.studentSchoolProfile = {
+        upsert: {
+          create: {
+            institutionType: 'SCHOOL',
+            schoolName: institution.name,
+            board: rowData.board || 'Not Specified',
+            class: rowData.class,
+            section: rowData.section,
+            rollNo: String(rowData.rollNumber),
+            dob: dob,
+          },
+          update: {
+            board: rowData.board || 'Not Specified',
+            class: rowData.class,
+            section: rowData.section,
+            rollNo: String(rowData.rollNumber),
+            dob: dob,
+          }
+        }
+      };
+    } else {
+      updateData.studentCollegeProfile = {
+        upsert: {
+          create: {
+            institutionType: 'COLLEGE',
+            collegeName: institution.name,
+            department: rowData.department || 'General',
+            yearOfStudy: rowData.yearOfStudy ? parseInt(rowData.yearOfStudy) : 1,
+            semester: rowData.semester ? parseInt(rowData.semester) : 1,
+            regNo: String(rowData.rollNumber),
+          },
+          update: {
+            department: rowData.department || 'General',
+            yearOfStudy: rowData.yearOfStudy ? parseInt(rowData.yearOfStudy) : 1,
+            semester: rowData.semester ? parseInt(rowData.semester) : 1,
+            regNo: String(rowData.rollNumber),
+          }
+        }
+      };
+    }
+
+    await prisma.user.update({
+      where: { id: existingUser.id },
+      data: updateData
+    });
+    results.updated++;
+  } else {
+    // Create new user
+    // Generate public ID
+    const publicId = await getNextSequenceId('user');
+
+    const createData = {
+      publicId,
+      email: rowData.email,
+      password: hashedPassword,
+      fullName: rowData.fullName,
+      phone: String(rowData.phone),
+      roleType: 'STUDENT',
+      institutionId: institutionId,
+    };
+
+    // Create the appropriate student profile based on institution type
+    if (institutionType === 'SCHOOL') {
+      createData.studentSchoolProfile = {
+        create: {
+          institutionType: 'SCHOOL',
+          schoolName: institution.name,
+          board: rowData.board || 'Not Specified',
+          class: rowData.class,
+          section: rowData.section,
+          rollNo: String(rowData.rollNumber),
+          dob: dob,
+        }
+      };
+    } else {
+      createData.studentCollegeProfile = {
+        create: {
+          institutionType: 'COLLEGE',
+          collegeName: institution.name,
+          department: rowData.department || 'General',
+          yearOfStudy: rowData.yearOfStudy ? parseInt(rowData.yearOfStudy) : 1,
+          semester: rowData.semester ? parseInt(rowData.semester) : 1,
+          regNo: String(rowData.rollNumber),
+        }
+      };
+    }
+
+    await prisma.user.create({
+      data: createData
+    });
+    results.created++;
+  }
+}
+
 module.exports = {
   generateFacultyTemplate,
   generateStudentTemplate,
   parseAndValidateFile,
+  saveImportData,
 };

@@ -13,6 +13,8 @@ export default function ImportWizard({ type, onClose }) {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [parsedData, setParsedData] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [importResults, setImportResults] = useState(null);
 
   const typeLabel = type === 'faculty' ? 'Faculty' : 'Student';
   const typeColor = type === 'faculty' ? 'blue' : 'green';
@@ -27,6 +29,11 @@ export default function ImportWizard({ type, onClose }) {
     if (currentStep === 3 && parsedData && parsedData.stats.withErrors > 0) {
       alert('Please fix all errors before proceeding. You can edit your Excel file and re-upload from Step 2.');
       return;
+    }
+
+    // If moving from step 4 to step 5, save the data
+    if (currentStep === 4) {
+      await saveImportData();
     }
 
     if (currentStep < STEPS.length) {
@@ -72,6 +79,43 @@ export default function ImportWizard({ type, onClose }) {
     }
   };
 
+  const saveImportData = async () => {
+    setIsSaving(true);
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+    try {
+      // Extract only valid rows
+      const validRows = parsedData.rows
+        .filter(row => !row.hasErrors)
+        .map(row => row.data);
+
+      const response = await fetch(`${API_URL}/admin/import/save`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          type,
+          rows: validRows
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to save import data');
+      }
+
+      const result = await response.json();
+      setImportResults(result.results);
+    } catch (error) {
+      console.error('Save error:', error);
+      alert(`Failed to save data: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
@@ -79,11 +123,11 @@ export default function ImportWizard({ type, onClose }) {
       case 2:
         return <StepUploadFile type={type} typeColor={typeColor} uploadedFile={uploadedFile} setUploadedFile={setUploadedFile} />;
       case 3:
-        return <StepValidateMap type={type} typeColor={typeColor} parsedData={parsedData} isProcessing={isProcessing} />;
+        return <StepValidateMap type={type} typeColor={typeColor} parsedData={parsedData} isProcessing={isProcessing} setParsedData={setParsedData} />;
       case 4:
         return <StepPreview type={type} typeColor={typeColor} parsedData={parsedData} />;
       case 5:
-        return <StepSave type={type} typeColor={typeColor} parsedData={parsedData} />;
+        return <StepSave type={type} typeColor={typeColor} parsedData={parsedData} importResults={importResults} isSaving={isSaving} />;
       default:
         return null;
     }
@@ -410,8 +454,10 @@ function StepUploadFile({ type, typeColor, uploadedFile, setUploadedFile }) {
 }
 
 // Step 3: Validate & Map
-function StepValidateMap({ type, typeColor, parsedData, isProcessing }) {
+function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedData }) {
   const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'valid', 'warnings', 'errors'
+  const [editingRow, setEditingRow] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
 
   if (isProcessing) {
     return (
@@ -453,6 +499,101 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing }) {
 
   const getRowValidation = (rowIndex) => {
     return validationResults.find(v => v.rowIndex === rowIndex);
+  };
+
+  const handleDeleteRow = (rowIndex) => {
+    if (!confirm('Are you sure you want to delete this row?')) return;
+
+    // Remove the row from parsedData
+    const updatedRows = parsedData.rows.filter(r => r.rowIndex !== rowIndex);
+    const updatedValidationResults = parsedData.validationResults.filter(v => v.rowIndex !== rowIndex);
+
+    // Recalculate stats
+    const newStats = {
+      total: updatedRows.length,
+      valid: updatedRows.filter(r => !r.hasErrors && !r.hasWarnings).length,
+      withWarnings: updatedRows.filter(r => r.hasWarnings && !r.hasErrors).length,
+      withErrors: updatedRows.filter(r => r.hasErrors).length
+    };
+
+    setParsedData({
+      ...parsedData,
+      rows: updatedRows,
+      validationResults: updatedValidationResults,
+      stats: newStats
+    });
+  };
+
+  const handleEditRow = (row) => {
+    setEditingRow(row);
+    setEditFormData({ ...row.data });
+  };
+
+  const handleSaveEdit = () => {
+    // Update the row data
+    const updatedRows = parsedData.rows.map(r => {
+      if (r.rowIndex === editingRow.rowIndex) {
+        return {
+          ...r,
+          data: editFormData,
+          // Mark for re-validation
+          hasErrors: false,
+          hasWarnings: false
+        };
+      }
+      return r;
+    });
+
+    // Simple client-side validation (you can enhance this)
+    const editedRow = updatedRows.find(r => r.rowIndex === editingRow.rowIndex);
+    const errors = [];
+    const warnings = [];
+
+    // Basic validation
+    if (!editFormData.fullName || !editFormData.fullName.trim()) {
+      errors.push({ field: 'fullName', message: 'Full Name is required' });
+    }
+    if (!editFormData.email || !editFormData.email.trim()) {
+      errors.push({ field: 'email', message: 'Email is required' });
+    }
+
+    editedRow.hasErrors = errors.length > 0;
+    editedRow.hasWarnings = warnings.length > 0;
+
+    // Update validation results
+    const updatedValidationResults = parsedData.validationResults.map(v => {
+      if (v.rowIndex === editingRow.rowIndex) {
+        return {
+          ...v,
+          errors,
+          warnings
+        };
+      }
+      return v;
+    });
+
+    // Recalculate stats
+    const newStats = {
+      total: updatedRows.length,
+      valid: updatedRows.filter(r => !r.hasErrors && !r.hasWarnings).length,
+      withWarnings: updatedRows.filter(r => r.hasWarnings && !r.hasErrors).length,
+      withErrors: updatedRows.filter(r => r.hasErrors).length
+    };
+
+    setParsedData({
+      ...parsedData,
+      rows: updatedRows,
+      validationResults: updatedValidationResults,
+      stats: newStats
+    });
+
+    setEditingRow(null);
+    setEditFormData({});
+  };
+
+  const handleCancelEdit = () => {
+    setEditingRow(null);
+    setEditFormData({});
   };
 
   return (
@@ -550,6 +691,7 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing }) {
               <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Status</th>
               <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Data Preview</th>
               <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Issues</th>
+              <th className="px-3 py-2 text-center font-medium text-gray-700 border-b">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -596,6 +738,24 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing }) {
                       </div>
                     )}
                   </td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => handleEditRow(row)}
+                        className="text-blue-600 hover:text-blue-800 font-medium text-xs px-2 py-1 rounded hover:bg-blue-50"
+                        title="Edit row"
+                      >
+                        ✏️ Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRow(row.rowIndex)}
+                        className="text-red-600 hover:text-red-800 font-medium text-xs px-2 py-1 rounded hover:bg-red-50"
+                        title="Delete row"
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -608,7 +768,7 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing }) {
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-sm text-red-800">
             <span className="font-semibold">⚠️ Cannot proceed:</span> Please fix {stats.withErrors} row(s) with errors before continuing.
-            You can edit your Excel file and re-upload.
+            You can edit or delete rows with errors, or re-upload your Excel file.
           </p>
         </div>
       ) : (
@@ -617,6 +777,50 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing }) {
             <span className="font-semibold">✓ Ready to import:</span> {stats.valid} valid rows found.
             {stats.withWarnings > 0 && ` ${stats.withWarnings} row(s) have warnings but can still be imported.`}
           </p>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingRow && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4">
+                Edit Row {editingRow.rowIndex}
+              </h3>
+
+              <div className="space-y-4">
+                {Object.keys(editFormData).map((field) => (
+                  <div key={field}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
+                      {field.replace(/([A-Z])/g, ' $1').trim()}
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData[field] || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, [field]: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={handleCancelEdit}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -744,19 +948,136 @@ function StepPreview({ type, typeColor, parsedData }) {
   );
 }
 
-// Step 5: Save (Placeholder)
-function StepSave({ type, typeColor }) {
+// Step 5: Save
+function StepSave({ type, typeColor, parsedData, importResults, isSaving }) {
+  if (isSaving) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4 animate-pulse">💾</div>
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">
+          Saving Records to Database...
+        </h3>
+        <p className="text-gray-600">
+          This may take a few moments. Please don't close this window.
+        </p>
+        <div className="mt-6">
+          <div className="w-64 mx-auto bg-gray-200 rounded-full h-2">
+            <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '75%' }}></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!importResults) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">⏳</div>
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">
+          Waiting to Save...
+        </h3>
+      </div>
+    );
+  }
+
+  const totalProcessed = importResults.created + importResults.updated + importResults.failed;
+  const successRate = totalProcessed > 0 ? ((importResults.created + importResults.updated) / totalProcessed * 100).toFixed(1) : 0;
+
   return (
-    <div className="text-center py-12">
-      <div className="text-6xl mb-4">💾</div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">
-        Save Records
-      </h3>
-      <p className="text-gray-600">
-        Commit all valid records to your institution.
-        <br />
-        (Will be implemented in Step 5)
-      </p>
+    <div className="space-y-6">
+      {/* Success Header */}
+      <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-8 border border-green-200 text-center">
+        <div className="text-6xl mb-4">🎉</div>
+        <h3 className="text-2xl font-bold text-gray-900 mb-2">
+          Import Completed Successfully!
+        </h3>
+        <p className="text-gray-700">
+          Your {type === 'faculty' ? 'faculty' : 'student'} data has been imported to the database.
+        </p>
+      </div>
+
+      {/* Results Summary */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-green-50 rounded-lg p-6 text-center border border-green-200">
+          <div className="text-3xl font-bold text-green-600">{importResults.created}</div>
+          <div className="text-sm text-gray-700 mt-1">New Records Created</div>
+        </div>
+        <div className="bg-blue-50 rounded-lg p-6 text-center border border-blue-200">
+          <div className="text-3xl font-bold text-blue-600">{importResults.updated}</div>
+          <div className="text-sm text-gray-700 mt-1">Existing Records Updated</div>
+        </div>
+        <div className="bg-red-50 rounded-lg p-6 text-center border border-red-200">
+          <div className="text-3xl font-bold text-red-600">{importResults.failed}</div>
+          <div className="text-sm text-gray-700 mt-1">Failed</div>
+        </div>
+      </div>
+
+      {/* Success Rate */}
+      <div className="bg-white rounded-lg p-6 border">
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-semibold text-gray-700">Success Rate</span>
+          <span className="text-2xl font-bold text-green-600">{successRate}%</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-3">
+          <div
+            className="bg-green-600 h-3 rounded-full transition-all duration-500"
+            style={{ width: `${successRate}%` }}
+          ></div>
+        </div>
+      </div>
+
+      {/* Error Details (if any) */}
+      {importResults.errors && importResults.errors.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <h4 className="font-semibold text-red-900 mb-3 flex items-center">
+            <span className="text-xl mr-2">⚠️</span>
+            Failed Records ({importResults.errors.length})
+          </h4>
+          <div className="max-h-48 overflow-y-auto space-y-2">
+            {importResults.errors.map((err, idx) => (
+              <div key={idx} className="bg-white rounded p-3 text-sm">
+                <div className="font-medium text-red-800">Row {err.row}</div>
+                <div className="text-red-600">{err.error}</div>
+                <div className="text-gray-600 text-xs mt-1">
+                  {err.data.fullName} ({err.data.email})
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Next Steps */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <h4 className="font-semibold text-blue-900 mb-3 flex items-center">
+          <span className="text-xl mr-2">💡</span>
+          What's Next?
+        </h4>
+        <ul className="list-disc list-inside text-sm text-blue-800 space-y-2 ml-6">
+          <li>All imported users can now log in with their credentials</li>
+          <li>Default passwords: First 4 letters of name + Last 4 digits of phone</li>
+          <li>Example: "John Doe" with phone "9876543210" → Password: "john3210"</li>
+          <li>Advise users to change their password after first login</li>
+          {type === 'student' && <li>Students can be enrolled in sections from Admin Panel</li>}
+          {type === 'faculty' && <li>Faculty can be assigned to sections from Admin Panel</li>}
+        </ul>
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-4 justify-center">
+        <button
+          onClick={() => window.location.reload()}
+          className={`px-6 py-3 bg-${typeColor}-600 text-white rounded-lg hover:bg-${typeColor}-700 font-medium transition-colors`}
+        >
+          Import More Data
+        </button>
+        <button
+          onClick={() => window.location.href = '/admin'}
+          className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition-colors"
+        >
+          Back to Dashboard
+        </button>
+      </div>
     </div>
   );
 }

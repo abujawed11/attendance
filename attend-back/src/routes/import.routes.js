@@ -14,4 +14,7 @@ router.get('/template/student', importController.generateStudentTemplate);
 // File parsing and validation
 router.post('/import/parse', importController.parseAndValidateFile);
 
+// Save imported data to database
+router.post('/import/save', importController.saveImportData);
+
 module.exports = router;
