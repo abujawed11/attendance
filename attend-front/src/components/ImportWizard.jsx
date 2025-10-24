@@ -259,11 +259,28 @@ function StepDownloadTemplate({ type, typeColor }) {
         throw new Error('Failed to download template');
       }
 
+      // Extract filename from Content-Disposition header
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `${type}_import_template.xlsx`; // Fallback filename
+
+      console.log('Content-Disposition header:', contentDisposition);
+
+      if (contentDisposition) {
+        // Match filename from Content-Disposition header (handles quoted and unquoted values)
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=\s*(['"]?)(.+?)\1(?:;|$)/);
+        console.log('Filename match:', filenameMatch);
+        if (filenameMatch && filenameMatch[2]) {
+          filename = filenameMatch[2];
+        }
+      }
+
+      console.log('Final filename:', filename);
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${type}_import_template.xlsx`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -1382,6 +1399,28 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
 function StepPreview({ type, typeColor, parsedData }) {
   const [showAll, setShowAll] = useState(false);
 
+  // Helper function to format Excel serial dates
+  const formatValue = (value, fieldName) => {
+    if (value === null || value === undefined || value === '') return '-';
+
+    // Check if this is a date field and if the value is an Excel serial number
+    const dateFields = ['dateOfBirth', 'joiningDate', 'dob'];
+    if (dateFields.includes(fieldName) && typeof value === 'number' && value > 1000) {
+      // Convert Excel serial number to date
+      const excelEpoch = new Date(1900, 0, 1);
+      const daysOffset = value - 2; // Excel incorrectly treats 1900 as a leap year
+      const date = new Date(excelEpoch.getTime() + daysOffset * 24 * 60 * 60 * 1000);
+
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+
+      return `${day}-${month}-${year}`;
+    }
+
+    return value;
+  };
+
   if (!parsedData) {
     return (
       <div className="text-center py-12">
@@ -1450,7 +1489,7 @@ function StepPreview({ type, typeColor, parsedData }) {
                   <td className="px-3 py-2 text-gray-600">{idx + 1}</td>
                   {fieldNames.map((field, fieldIdx) => (
                     <td key={fieldIdx} className="px-3 py-2 text-gray-700">
-                      {row.data[field] || '-'}
+                      {formatValue(row.data[field], field)}
                     </td>
                   ))}
                 </tr>

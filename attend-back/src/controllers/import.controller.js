@@ -379,13 +379,13 @@ async function generateStudentTemplate(req, res) {
     // Generate buffer
     const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
 
-    // Set headers
+    // Set headers with institution-specific filename
     const filename = institutionType === 'SCHOOL'
       ? 'school_student_import_template.xlsx'
       : 'college_student_import_template.xlsx';
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
     res.send(buffer);
   } catch (error) {
