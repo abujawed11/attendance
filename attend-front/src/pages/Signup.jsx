@@ -1021,17 +1021,44 @@ export default function Signup() {
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">I am a</label>
-              <select
-                name="roleType"
-                value={roleType}
-                onChange={onChangeRole}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value={RoleType.STUDENT}>Student</option>
-                <option value={RoleType.FACULTY}>Faculty</option>
-                <option value={RoleType.PARENT}>Parent</option>
-                <option value={RoleType.ADMIN}>Admin</option>
-              </select>
+              <div className="mt-2 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => onChangeRole({ target: { value: RoleType.STUDENT } })}
+                  aria-pressed={roleType === RoleType.STUDENT}
+                  className={`${roleType === RoleType.STUDENT ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'} inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                >
+                  <span aria-hidden>🎓</span>
+                  <span>Student</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeRole({ target: { value: RoleType.FACULTY } })}
+                  aria-pressed={roleType === RoleType.FACULTY}
+                  className={`${roleType === RoleType.FACULTY ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'} inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                >
+                  <span aria-hidden>👩‍🏫</span>
+                  <span>Faculty</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeRole({ target: { value: RoleType.PARENT } })}
+                  aria-pressed={roleType === RoleType.PARENT}
+                  className={`${roleType === RoleType.PARENT ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'} inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                >
+                  <span aria-hidden>👪</span>
+                  <span>Parent</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeRole({ target: { value: RoleType.ADMIN } })}
+                  aria-pressed={roleType === RoleType.ADMIN}
+                  className={`${roleType === RoleType.ADMIN ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'} inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                >
+                  <span aria-hidden>🛠️</span>
+                  <span>Admin</span>
+                </button>
+              </div>
               <E name="roleType" />
             </div>
 
