@@ -17,4 +17,7 @@ router.post('/import/parse', importController.parseAndValidateFile);
 // Save imported data to database
 router.post('/import/save', importController.saveImportData);
 
+// Manually add users
+router.post('/users/add-manual', importController.addUsersManually);
+
 module.exports = router;

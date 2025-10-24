@@ -1420,9 +1420,83 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
   }
 }
 
+/**
+ * Manually Add Users (Faculty or Students)
+ * POST /api/admin/users/add-manual
+ */
+async function addUsersManually(req, res) {
+  try {
+    const { type, users } = req.body; // type: 'faculty' or 'student'
+    const institutionId = req.user.institutionId;
+    const institutionType = req.user.institution?.type;
+
+    if (!institutionId || !institutionType) {
+      return res.status(400).json({
+        success: false,
+        message: 'Institution information not found'
+      });
+    }
+
+    if (!Array.isArray(users) || users.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Users array is required and must not be empty'
+      });
+    }
+
+    const institution = await prisma.institution.findUnique({
+      where: { id: institutionId }
+    });
+
+    const results = {
+      created: 0,
+      updated: 0,
+      failed: 0,
+      errors: []
+    };
+
+    // Process each user
+    for (let i = 0; i < users.length; i++) {
+      const userData = users[i];
+      const rowIndex = i + 1;
+
+      try {
+        if (type === 'faculty') {
+          await importFacultyRecord(userData, institutionId, institutionType, institution, results);
+        } else if (type === 'student') {
+          await importStudentRecord(userData, institutionId, institutionType, institution, results);
+        }
+      } catch (error) {
+        console.error(`Error processing row ${rowIndex}:`, error);
+        results.failed++;
+        results.errors.push({
+          row: rowIndex,
+          error: error.message,
+          data: userData
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully processed ${results.created + results.updated} out of ${users.length} users`,
+      data: results
+    });
+
+  } catch (error) {
+    console.error('Add users manually error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add users',
+      error: error.message
+    });
+  }
+}
+
 module.exports = {
   generateFacultyTemplate,
   generateStudentTemplate,
   parseAndValidateFile,
   saveImportData,
+  addUsersManually,
 };
