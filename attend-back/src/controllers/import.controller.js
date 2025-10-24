@@ -64,6 +64,7 @@ const STUDENT_FIELD_MAP = {
   // School student fields
   'Roll Number*': 'rollNumber',
   'rollnumber': 'rollNumber',
+  'roll number': 'rollNumber',
   'roll': 'rollNumber',
   'Class*': 'class',
   'class': 'class',
@@ -71,11 +72,14 @@ const STUDENT_FIELD_MAP = {
   'section': 'section',
   'Parent Name*': 'parentName',
   'parentname': 'parentName',
+  'parent name': 'parentName',
   'guardian': 'parentName',
   'Parent Email*': 'parentEmail',
   'parentemail': 'parentEmail',
+  'parent email': 'parentEmail',
   'Parent Phone*': 'parentPhone',
   'parentphone': 'parentPhone',
+  'parent phone': 'parentPhone',
 
   // Legacy guardian fields (for backwards compatibility)
   'Guardian Name': 'guardianName',
@@ -516,6 +520,31 @@ function generateDefaultPassword(fullName, phone) {
 }
 
 /**
+ * Generate email for school student
+ * Format: rollnumber@schooldomain.student.in
+ * Example: 10A001@xyz.student.in (if school name is "XYZ Public School")
+ */
+function generateSchoolStudentEmail(rollNumber, institutionName) {
+  // Clean roll number - remove spaces and special characters
+  const cleanRollNo = String(rollNumber).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // Extract domain from institution name
+  // Remove common school suffixes and get first meaningful word
+  const schoolWords = institutionName
+    .toLowerCase()
+    .replace(/\b(public|private|school|high|senior|secondary|convent|academy|international|vidyalaya|vidyapeeth)\b/g, '')
+    .trim()
+    .split(/\s+/)
+    .filter(word => word.length > 2);
+
+  // Use first word or fallback to 'school'
+  const domain = schoolWords.length > 0 ? schoolWords[0] : 'school';
+
+  // Format: rollnumber@domain.student.in
+  return `${cleanRollNo}@${domain}.student.in`;
+}
+
+/**
  * Validate a single row of faculty data
  */
 async function validateFacultyRow(rowData, rowIndex, institutionId, institutionType) {
@@ -657,15 +686,8 @@ async function validateStudentRow(rowData, rowIndex, institutionId, institutionT
       errors.push({ field: 'parentPhone', message: 'Parent phone must be 10 digits' });
     }
 
-    // Check if parent email already exists
-    if (rowData.parentEmail && validateEmail(rowData.parentEmail)) {
-      const existingParent = await prisma.user.findUnique({
-        where: { email: rowData.parentEmail }
-      });
-      if (existingParent) {
-        errors.push({ field: 'parentEmail', message: 'Parent email already exists in database' });
-      }
-    }
+    // Note: Parent email and phone can be same for multiple students (siblings)
+    // So we don't check for duplicates
 
   } else if (institutionType === 'COLLEGE') {
     // College-specific validations
@@ -992,7 +1014,8 @@ async function parseAndValidateFile(req, res) {
         unmapped,
         rows: parsedRows,
         validationResults,
-        stats
+        stats,
+        institutionType: institutionType // Send institution type to frontend
       }
     });
 
@@ -1203,9 +1226,9 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
 
   if (institutionType === 'SCHOOL') {
     // For SCHOOL students: Create parent account and link student
-    // Parent uses their email for login, student doesn't have login credentials
+    // Parent uses their email for login, student gets a generated email
 
-    // Check if parent already exists
+    // Check if parent already exists (same parent can have multiple children)
     let parentUser = await prisma.user.findUnique({
       where: { email: rowData.parentEmail },
       include: { parentProfile: true }
@@ -1234,7 +1257,7 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
       });
     }
 
-    // Now create/update the student record (student doesn't have email/phone/password)
+    // Now create/update the student record (student gets auto-generated email)
     // Check if student exists by roll number
     const existingStudent = await prisma.studentSchoolProfile.findFirst({
       where: {
@@ -1253,8 +1276,8 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
           studentSchoolProfile: {
             update: {
               board: institution.board || 'Not Specified',
-              class: rowData.class,
-              section: rowData.section,
+              class: String(rowData.class),
+              section: String(rowData.section),
               rollNo: String(rowData.rollNumber),
               dob: dob,
             }
@@ -1284,14 +1307,21 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
 
       results.updated++;
     } else {
-      // Create new student (without email/password - they don't log in)
+      // Create new student with generated email
       const studentPublicId = await getNextSequenceId('user');
+
+      // Generate email for school student: rollnumber@schooldomain.student.in
+      const generatedEmail = generateSchoolStudentEmail(rowData.rollNumber, institution.name);
+
+      // Generate a default password (though school students typically won't login)
+      const studentPassword = generateDefaultPassword(rowData.fullName, rowData.parentPhone);
+      const hashedStudentPassword = await bcrypt.hash(studentPassword, 10);
 
       const studentUser = await prisma.user.create({
         data: {
           publicId: studentPublicId,
-          email: `${rowData.rollNumber.toLowerCase()}@student.temp`, // Temp email for uniqueness
-          password: await bcrypt.hash('temp-password', 10), // Temp password (not used)
+          email: generatedEmail,
+          password: hashedStudentPassword,
           fullName: rowData.fullName,
           roleType: 'STUDENT',
           institutionId: institutionId,
@@ -1300,8 +1330,8 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
               institutionType: 'SCHOOL',
               schoolName: institution.name,
               board: institution.board || 'Not Specified',
-              class: rowData.class,
-              section: rowData.section,
+              class: String(rowData.class),
+              section: String(rowData.section),
               rollNo: String(rowData.rollNumber),
               dob: dob,
             }

@@ -623,16 +623,23 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
       errors.push({ field: 'fullName', message: 'Full Name is required' });
     }
 
-    if (!editFormData.email || String(editFormData.email).trim() === '') {
-      errors.push({ field: 'email', message: 'Email is required' });
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(editFormData.email).trim())) {
-      errors.push({ field: 'email', message: 'Invalid email format' });
-    }
+    // Email and phone validation - only for faculty and college students
+    const institutionType = parsedData?.institutionType;
+    const isSchoolStudent = type === 'student' && institutionType === 'SCHOOL';
 
-    if (!editFormData.phone || String(editFormData.phone).trim() === '') {
-      errors.push({ field: 'phone', message: 'Phone is required' });
-    } else if (!/^\d{10}$/.test(String(editFormData.phone).replace(/\s/g, ''))) {
-      errors.push({ field: 'phone', message: 'Phone must be 10 digits' });
+    if (!isSchoolStudent) {
+      // For faculty and college students, email and phone are required
+      if (!editFormData.email || String(editFormData.email).trim() === '') {
+        errors.push({ field: 'email', message: 'Email is required' });
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(editFormData.email).trim())) {
+        errors.push({ field: 'email', message: 'Invalid email format' });
+      }
+
+      if (!editFormData.phone || String(editFormData.phone).trim() === '') {
+        errors.push({ field: 'phone', message: 'Phone is required' });
+      } else if (!/^\d{10}$/.test(String(editFormData.phone).replace(/\s/g, ''))) {
+        errors.push({ field: 'phone', message: 'Phone must be 10 digits' });
+      }
     }
 
     // Type-specific validation
@@ -656,37 +663,70 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
       if (!editFormData.dateOfBirth || String(editFormData.dateOfBirth).trim() === '') {
         errors.push({ field: 'dateOfBirth', message: 'Date of Birth is required' });
       }
-      if (!editFormData.class || String(editFormData.class).trim() === '') {
-        errors.push({ field: 'class', message: 'Class is required' });
-      }
-      if (!editFormData.section || String(editFormData.section).trim() === '') {
-        errors.push({ field: 'section', message: 'Section is required' });
+
+      // School student specific validations
+      if (institutionType === 'SCHOOL') {
+        if (!editFormData.class || String(editFormData.class).trim() === '') {
+          errors.push({ field: 'class', message: 'Class is required' });
+        }
+        if (!editFormData.section || String(editFormData.section).trim() === '') {
+          errors.push({ field: 'section', message: 'Section is required' });
+        }
+
+        // Parent info required for school students
+        if (!editFormData.parentName || String(editFormData.parentName).trim() === '') {
+          errors.push({ field: 'parentName', message: 'Parent Name is required' });
+        }
+        if (!editFormData.parentEmail || String(editFormData.parentEmail).trim() === '') {
+          errors.push({ field: 'parentEmail', message: 'Parent Email is required' });
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(editFormData.parentEmail).trim())) {
+          errors.push({ field: 'parentEmail', message: 'Invalid parent email format' });
+        }
+        if (!editFormData.parentPhone || String(editFormData.parentPhone).trim() === '') {
+          errors.push({ field: 'parentPhone', message: 'Parent Phone is required' });
+        } else if (!/^\d{10}$/.test(String(editFormData.parentPhone).replace(/\s/g, ''))) {
+          errors.push({ field: 'parentPhone', message: 'Parent phone must be 10 digits' });
+        }
+      } else if (institutionType === 'COLLEGE') {
+        // College student specific validations
+        if (!editFormData.department || String(editFormData.department).trim() === '') {
+          errors.push({ field: 'department', message: 'Department is required' });
+        }
+        if (!editFormData.yearOfStudy) {
+          errors.push({ field: 'yearOfStudy', message: 'Year of Study is required' });
+        }
+        if (!editFormData.semester) {
+          errors.push({ field: 'semester', message: 'Semester is required' });
+        }
       }
     }
 
     // Check for duplicates within Excel (excluding current row)
     const otherRows = updatedRows.filter(r => r.rowIndex !== editingRow.rowIndex);
 
-    // Email duplicates
-    const emailDuplicates = otherRows.filter(r =>
-      r.data.email && r.data.email.toLowerCase().trim() === editFormData.email?.toLowerCase().trim()
-    );
-    if (emailDuplicates.length > 0) {
-      errors.push({
-        field: 'email',
-        message: `Duplicate email in Excel file (also in rows: ${emailDuplicates.map(r => r.rowIndex).join(', ')})`
-      });
-    }
+    // Email/phone duplicates - only for faculty and college students
+    if (!isSchoolStudent) {
+      // Email duplicates
+      const emailDuplicates = otherRows.filter(r =>
+        r.data.email && r.data.email.toLowerCase().trim() === editFormData.email?.toLowerCase().trim()
+      );
+      if (emailDuplicates.length > 0) {
+        errors.push({
+          field: 'email',
+          message: `Duplicate email in Excel file (also in rows: ${emailDuplicates.map(r => r.rowIndex).join(', ')})`
+        });
+      }
 
-    // Phone duplicates
-    const phoneDuplicates = otherRows.filter(r =>
-      r.data.phone && String(r.data.phone).trim() === String(editFormData.phone).trim()
-    );
-    if (phoneDuplicates.length > 0) {
-      errors.push({
-        field: 'phone',
-        message: `Duplicate phone number in Excel file (also in rows: ${phoneDuplicates.map(r => r.rowIndex).join(', ')})`
-      });
+      // Phone duplicates
+      const phoneDuplicates = otherRows.filter(r =>
+        r.data.phone && String(r.data.phone).trim() === String(editFormData.phone).trim()
+      );
+      if (phoneDuplicates.length > 0) {
+        errors.push({
+          field: 'phone',
+          message: `Duplicate phone number in Excel file (also in rows: ${phoneDuplicates.map(r => r.rowIndex).join(', ')})`
+        });
+      }
     }
 
     // Employee ID duplicates (faculty only)
