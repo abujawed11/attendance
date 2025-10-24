@@ -1,6 +1,5 @@
 const xlsx = require('xlsx');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/prisma');
 
 /**
  * Field Mapping Configuration
@@ -23,6 +22,10 @@ const FACULTY_FIELD_MAP = {
   'Designation*': 'designation',
   'designation': 'designation',
   'position': 'designation',
+  'Qualification*': 'qualification',
+  'Qualification': 'qualification',
+  'qualification': 'qualification',
+  'qualifications': 'qualification',
   'Subject': 'subject',
   'subject': 'subject',
   'subjects': 'subject',
@@ -79,6 +82,7 @@ const FACULTY_TEMPLATE = {
     'Employee ID*',
     'Department*',
     'Designation*',
+    'Qualification*',
     'Subject',
     'Joining Date',
   ],
@@ -89,6 +93,7 @@ const FACULTY_TEMPLATE = {
     'FAC001',
     'Mathematics',
     'Assistant Professor',
+    'M.Sc, B.Ed',
     'Algebra, Geometry',
     '15-01-2020',
   ],
@@ -106,6 +111,7 @@ const FACULTY_TEMPLATE = {
     'For School: Department = Subject (English, Math, Science, etc.)',
     'For College: Department = CSE, Mechanical, Civil, etc.',
     'Designation: Professor, Assistant Professor, Lecturer, etc.',
+    'Qualification: B.Ed, M.Ed, Ph.D, B.Tech, M.Tech, etc.',
     'Subject: Can list multiple separated by comma',
   ],
 };
@@ -196,9 +202,20 @@ async function generateFacultyTemplate(req, res) {
       { wch: 15 }, // Employee ID
       { wch: 25 }, // Department
       { wch: 25 }, // Designation
+      { wch: 20 }, // Qualification
       { wch: 30 }, // Subject
       { wch: 15 }, // Joining Date
     ];
+
+    // Format date columns as Text to preserve DD-MM-YYYY format
+    // Column H is Joining Date (index 8, 0-based)
+    const range = xlsx.utils.decode_range(ws['!ref']);
+    for (let row = 1; row <= range.e.r; row++) {
+      const cellAddress = xlsx.utils.encode_cell({ r: row, c: 8 }); // Column H (Joining Date)
+      if (ws[cellAddress]) {
+        ws[cellAddress].z = '@'; // Text format
+      }
+    }
 
     // Add to workbook
     xlsx.utils.book_append_sheet(wb, ws, 'Faculty Data');
@@ -261,6 +278,16 @@ async function generateStudentTemplate(req, res) {
       { wch: 15 }, // Guardian Phone
       { wch: 15 }, // Guardian Relation
     ];
+
+    // Format date columns as Text to preserve DD-MM-YYYY format
+    // Column E is Date of Birth (index 4, 0-based)
+    const range = xlsx.utils.decode_range(ws['!ref']);
+    for (let row = 1; row <= range.e.r; row++) {
+      const cellAddress = xlsx.utils.encode_cell({ r: row, c: 4 }); // Column E (Date of Birth)
+      if (ws[cellAddress]) {
+        ws[cellAddress].z = '@'; // Text format
+      }
+    }
 
     // Add to workbook
     xlsx.utils.book_append_sheet(wb, ws, 'Student Data');
@@ -352,7 +379,7 @@ function detectColumnMapping(headers, fieldMap) {
 /**
  * Validate a single row of faculty data
  */
-async function validateFacultyRow(rowData, rowIndex, institutionId) {
+async function validateFacultyRow(rowData, rowIndex, institutionId, institutionType) {
   const errors = [];
   const warnings = [];
 
@@ -385,6 +412,10 @@ async function validateFacultyRow(rowData, rowIndex, institutionId) {
     errors.push({ field: 'designation', message: 'Designation is required' });
   }
 
+  if (!rowData.qualification || String(rowData.qualification).trim() === '') {
+    errors.push({ field: 'qualification', message: 'Qualification is required' });
+  }
+
   // Date validation
   if (rowData.joiningDate) {
     const parsedDate = validateDate(rowData.joiningDate);
@@ -404,12 +435,24 @@ async function validateFacultyRow(rowData, rowIndex, institutionId) {
   }
 
   if (rowData.employeeId) {
-    const existingFaculty = await prisma.facultyProfile.findFirst({
-      where: {
-        employeeId: String(rowData.employeeId).trim(),
-        user: { institutionId }
-      }
-    });
+    // Check the appropriate faculty profile model based on institution type
+    let existingFaculty = null;
+    if (institutionType === 'SCHOOL') {
+      existingFaculty = await prisma.facultySchoolProfile.findFirst({
+        where: {
+          employeeId: String(rowData.employeeId).trim(),
+          user: { institutionId }
+        }
+      });
+    } else if (institutionType === 'COLLEGE') {
+      existingFaculty = await prisma.facultyCollegeProfile.findFirst({
+        where: {
+          employeeId: String(rowData.employeeId).trim(),
+          user: { institutionId }
+        }
+      });
+    }
+
     if (existingFaculty) {
       warnings.push({ field: 'employeeId', message: 'Employee ID exists - will be updated' });
     }
@@ -421,7 +464,7 @@ async function validateFacultyRow(rowData, rowIndex, institutionId) {
 /**
  * Validate a single row of student data
  */
-async function validateStudentRow(rowData, rowIndex, institutionId) {
+async function validateStudentRow(rowData, rowIndex, institutionId, institutionType) {
   const errors = [];
   const warnings = [];
 
@@ -479,12 +522,24 @@ async function validateStudentRow(rowData, rowIndex, institutionId) {
   }
 
   if (rowData.rollNumber) {
-    const existingStudent = await prisma.studentProfile.findFirst({
-      where: {
-        rollNumber: String(rowData.rollNumber).trim(),
-        user: { institutionId }
-      }
-    });
+    // Check the appropriate student profile model based on institution type
+    let existingStudent = null;
+    if (institutionType === 'SCHOOL') {
+      existingStudent = await prisma.studentSchoolProfile.findFirst({
+        where: {
+          rollNo: String(rowData.rollNumber).trim(),
+          user: { institutionId }
+        }
+      });
+    } else if (institutionType === 'COLLEGE') {
+      existingStudent = await prisma.studentCollegeProfile.findFirst({
+        where: {
+          regNo: String(rowData.rollNumber).trim(),
+          user: { institutionId }
+        }
+      });
+    }
+
     if (existingStudent) {
       warnings.push({ field: 'rollNumber', message: 'Roll Number exists - will be updated' });
     }
@@ -501,6 +556,14 @@ async function parseAndValidateFile(req, res) {
   try {
     const { type } = req.body; // 'faculty' or 'student'
     const institutionId = req.user.institutionId;
+    const institutionType = req.user.institution?.type;
+
+    if (!institutionId || !institutionType) {
+      return res.status(400).json({
+        success: false,
+        message: 'Institution information not found. Please ensure you are logged in as an admin.'
+      });
+    }
 
     if (!req.files || !req.files.file) {
       return res.status(400).json({
@@ -552,8 +615,8 @@ async function parseAndValidateFile(req, res) {
 
       // Validate row
       const validation = type === 'faculty'
-        ? await validateFacultyRow(rowData, rowIndex, institutionId)
-        : await validateStudentRow(rowData, rowIndex, institutionId);
+        ? await validateFacultyRow(rowData, rowIndex, institutionId, institutionType)
+        : await validateStudentRow(rowData, rowIndex, institutionId, institutionType);
 
       parsedRows.push({
         rowIndex,

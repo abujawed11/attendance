@@ -15,7 +15,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/* ===================== Enums ===================== */
+/**
+ * ===================== Enums =====================
+ */
 
 enum InstitutionType {
   SCHOOL
@@ -29,42 +31,48 @@ enum RoleType {
   ADMIN
 }
 
-/* ===================== Infrastructure ===================== */
+/**
+ * ===================== Infrastructure =====================
+ */
 
-/** For pretty IDs like USR000001 / INS000001 / INV000001 */
+/**
+ * For pretty IDs like USR000001 / INS000001 / INV000001
+ */
 model Sequence {
-  model String @id          // e.g., "user", "institution", "invite"
+  model String @id // e.g., "user", "institution", "invite"
   next  Int
 }
 
-/* ===================== Core ===================== */
+/**
+ * ===================== Core =====================
+ */
 
 model Institution {
-  id         Int             @id @default(autoincrement())
-  publicId   String          @unique @db.VarChar(16) // INS000001
-  name       String
-  type       InstitutionType
-  city       String?                           // City/Location
-  board      String?                           // for schools (CBSE/ICSE/etc.)
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  id        Int             @id @default(autoincrement())
+  publicId  String          @unique @db.VarChar(16) // INS000001
+  name      String
+  type      InstitutionType
+  city      String? // City/Location
+  board     String? // for schools (CBSE/ICSE/etc.)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 
-  users      User[]
-  invites    Invite[]
-  sections   Section[]
+  users    User[]
+  invites  Invite[]
+  sections Section[]
 }
 
 model User {
-  id         Int        @id @default(autoincrement())
-  publicId   String     @unique @db.VarChar(16) // USR000001
-  email      String     @unique
-  fullName   String
-  password   String
-  roleType   RoleType
-  status     String     @default("active")
-  phone      String?    // useful for parents/faculty
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  id        Int      @id @default(autoincrement())
+  publicId  String   @unique @db.VarChar(16) // USR000001
+  email     String   @unique
+  fullName  String
+  password  String
+  roleType  RoleType
+  status    String   @default("active")
+  phone     String? // useful for parents/faculty
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   institutionId Int?
   institution   Institution? @relation(fields: [institutionId], references: [id])
@@ -82,86 +90,96 @@ model User {
   wards         StudentGuardian[] @relation("StudentLinks")
 
   // Attendance relations
-  enrollments          Enrollment[]          @relation("StudentEnrollments")
-  facultySections      FacultySection[]      @relation("FacultyAssignments")
-  attendanceSessions   AttendanceSession[]   @relation("FacultyAttendanceSessions")
+  enrollments        Enrollment[]        @relation("StudentEnrollments")
+  facultySections    FacultySection[]    @relation("FacultyAssignments")
+  attendanceSessions AttendanceSession[] @relation("FacultyAttendanceSessions")
 }
 
-/* ===================== Invites ===================== */
+/**
+ * ===================== Invites =====================
+ */
 
 model Invite {
-  id             Int       @id @default(autoincrement())
-  publicId       String    @unique @db.VarChar(16) // INV000001
-  code           String    @unique
+  id             Int          @id @default(autoincrement())
+  publicId       String       @unique @db.VarChar(16) // INV000001
+  code           String       @unique
   institutionId  Int?
   institution    Institution? @relation(fields: [institutionId], references: [id])
-  allowedRoles   String    // JSON string e.g. '["STUDENT","FACULTY"]'
-  allowedDomains String?   // JSON string e.g. '["school.edu"]'
-  maxUses        Int       @default(1)
-  usedCount      Int       @default(0)
+  allowedRoles   String // JSON string e.g. '["STUDENT","FACULTY"]'
+  allowedDomains String? // JSON string e.g. '["school.edu"]'
+  maxUses        Int          @default(1)
+  usedCount      Int          @default(0)
   expiresAt      DateTime?
-  createdAt      DateTime  @default(now())
+  createdAt      DateTime     @default(now())
 }
 
-/* ===================== Profiles: Students ===================== */
+/**
+ * ===================== Profiles: Students =====================
+ */
 
 model StudentSchoolProfile {
-  userId     Int     @id
-  user       User    @relation(fields: [userId], references: [id])
+  userId Int  @id
+  user   User @relation(fields: [userId], references: [id])
 
   institutionType InstitutionType @default(SCHOOL)
-  schoolName String
-  board      String    // CBSE/ICSE/State board - now required
-  class      String    // e.g., "10"
-  section    String    // e.g., "A" - now required
-  rollNo     String
-  dob        DateTime
+  schoolName      String
+  board           String // CBSE/ICSE/State board - now required
+  class           String // e.g., "10"
+  section         String // e.g., "A" - now required
+  rollNo          String
+  dob             DateTime
 }
 
 model StudentCollegeProfile {
-  userId     Int     @id
-  user       User    @relation(fields: [userId], references: [id])
+  userId Int  @id
+  user   User @relation(fields: [userId], references: [id])
 
   institutionType InstitutionType @default(COLLEGE)
-  collegeName  String
-  department   String
-  yearOfStudy  Int        // 1..8
-  semester     Int        // 1..16 - now required
-  regNo        String     // roll/registration no
+  collegeName     String
+  department      String
+  yearOfStudy     Int // 1..8
+  semester        Int // 1..16 - now required
+  regNo           String // roll/registration no
 }
 
-/* ===================== Profiles: Faculty ===================== */
+/**
+ * ===================== Profiles: Faculty =====================
+ */
 
 model FacultySchoolProfile {
-  userId     Int  @id
-  user       User @relation(fields: [userId], references: [id])
+  userId Int  @id
+  user   User @relation(fields: [userId], references: [id])
 
   institutionType InstitutionType @default(SCHOOL)
-  schoolName String
-  department String              // English, Physics, Mathematics, etc.
-  employeeId String              @unique
+  schoolName      String
+  department      String // English, Physics, Mathematics, etc.
+  employeeId      String          @unique
+  qualification   String          @default("Not Specified") // B.Ed, M.Ed, Ph.D, etc.
 
   @@index([employeeId])
 }
 
 model FacultyCollegeProfile {
-  userId     Int  @id
-  user       User @relation(fields: [userId], references: [id])
+  userId Int  @id
+  user   User @relation(fields: [userId], references: [id])
 
   institutionType InstitutionType @default(COLLEGE)
-  collegeName String
-  department  String              // CSE, Mechanical, Civil, etc.
-  designation String              // Professor, Assistant Professor, Lecturer, etc.
-  employeeId  String              @unique
+  collegeName     String
+  department      String // CSE, Mechanical, Civil, etc.
+  designation     String // Professor, Assistant Professor, Lecturer, etc.
+  employeeId      String          @unique
+  qualification   String          @default("Not Specified") // B.Tech, M.Tech, Ph.D, etc.
 
   @@index([employeeId])
 }
 
-/* ===================== Profiles: Parent & Linking ===================== */
+/**
+ * ===================== Profiles: Parent & Linking =====================
+ */
 
 model ParentProfile {
-  userId   Int   @id
-  user     User  @relation(fields: [userId], references: [id])
+  userId Int  @id
+  user   User @relation(fields: [userId], references: [id])
 
   // Parent phone we keep on User.phone too, but duplicating here is fine if needed
   // Student link can be added via StudentGuardian (below).
@@ -172,34 +190,40 @@ model ParentProfile {
   provisionalStudentDob    DateTime?
 }
 
-/** M2M: Parent ↔ Student */
+/**
+ * M2M: Parent ↔ Student
+ */
 model StudentGuardian {
-  id            Int    @id @default(autoincrement())
+  id            Int     @id @default(autoincrement())
   parentUserId  Int
   studentUserId Int
   relation      String? // father/mother/guardian/etc.
 
-  parent  User @relation("ParentLinks",  fields: [parentUserId],  references: [id])
+  parent  User @relation("ParentLinks", fields: [parentUserId], references: [id])
   student User @relation("StudentLinks", fields: [studentUserId], references: [id])
 
   @@unique([parentUserId, studentUserId])
 }
 
-/* ===================== Profiles: Admin ===================== */
+/**
+ * ===================== Profiles: Admin =====================
+ */
 
 model AdminProfile {
-  userId      Int   @id
-  user        User  @relation(fields: [userId], references: [id])
+  userId Int  @id
+  user   User @relation(fields: [userId], references: [id])
 
   institutionType InstitutionType? // optional if admin is global
   institutionName String?
-  institutionCity String?          // City/Location of institution
-  designation     String?          // Principal / Registrar / Dept Admin
-  department      String?          // if college admin
-  board           String?          // if school admin (CBSE/ICSE/State board)
+  institutionCity String? // City/Location of institution
+  designation     String? // Principal / Registrar / Dept Admin
+  department      String? // if college admin
+  board           String? // if school admin (CBSE/ICSE/State board)
 }
 
-/* ===================== OTP/Verification ===================== */
+/**
+ * ===================== OTP/Verification =====================
+ */
 
 model OTP {
   id        Int      @id @default(autoincrement())
@@ -213,7 +237,9 @@ model OTP {
   @@index([email, purpose])
 }
 
-/* ===================== Attendance System ===================== */
+/**
+ * ===================== Attendance System =====================
+ */
 
 enum AttendanceStatus {
   PRESENT
@@ -227,29 +253,29 @@ enum AttendanceStatus {
  * College: "CSE 3rd Year A"
  */
 model Section {
-  id        Int             @id @default(autoincrement())
-  publicId  String          @unique @db.VarChar(16) // SEC000001
-  name      String                                   // "Class 10 A" or "CSE 3rd Year A"
+  id       Int    @id @default(autoincrement())
+  publicId String @unique @db.VarChar(16) // SEC000001
+  name     String // "Class 10 A" or "CSE 3rd Year A"
 
   institutionId Int
   institution   Institution @relation(fields: [institutionId], references: [id])
 
   // For schools
-  schoolClass   String?     // "10", "11", "12"
-  schoolSection String?     // "A", "B", "C"
-  board         String?     // "CBSE", "ICSE", "State"
+  schoolClass   String? // "10", "11", "12"
+  schoolSection String? // "A", "B", "C"
+  board         String? // "CBSE", "ICSE", "State"
 
   // For colleges
-  department    String?     // "CSE", "Mechanical", "Civil"
-  yearOfStudy   Int?        // 1, 2, 3, 4
-  semester      Int?        // 1-8
+  department  String? // "CSE", "Mechanical", "Civil"
+  yearOfStudy Int? // 1, 2, 3, 4
+  semester    Int? // 1-8
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  enrollments       Enrollment[]
-  facultySections   FacultySection[]
+  enrollments        Enrollment[]
+  facultySections    FacultySection[]
   attendanceSessions AttendanceSession[]
 
   @@index([institutionId])
@@ -261,7 +287,7 @@ model Section {
  * A section has multiple students
  */
 model Enrollment {
-  id        Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   studentUserId Int
   student       User @relation("StudentEnrollments", fields: [studentUserId], references: [id])
@@ -286,7 +312,7 @@ model Enrollment {
  * A section can have multiple faculty (different subjects)
  */
 model FacultySection {
-  id        Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   facultyUserId Int
   faculty       User @relation("FacultyAssignments", fields: [facultyUserId], references: [id])
@@ -294,7 +320,7 @@ model FacultySection {
   sectionId Int
   section   Section @relation(fields: [sectionId], references: [id])
 
-  subject   String?  // "Mathematics", "Physics", "Data Structures"
+  subject    String? // "Mathematics", "Physics", "Data Structures"
   assignedAt DateTime @default(now())
   isActive   Boolean  @default(true)
 
@@ -308,8 +334,8 @@ model FacultySection {
  * Created by faculty for a specific section on a specific date
  */
 model AttendanceSession {
-  id        Int      @id @default(autoincrement())
-  publicId  String   @unique @db.VarChar(16) // ATT000001
+  id       Int    @id @default(autoincrement())
+  publicId String @unique @db.VarChar(16) // ATT000001
 
   sectionId Int
   section   Section @relation(fields: [sectionId], references: [id])
@@ -317,9 +343,9 @@ model AttendanceSession {
   facultyUserId Int
   faculty       User @relation("FacultyAttendanceSessions", fields: [facultyUserId], references: [id])
 
-  date      DateTime @default(now())
-  subject   String?  // Optional: which subject/period
-  notes     String?  @db.Text
+  date    DateTime @default(now())
+  subject String? // Optional: which subject/period
+  notes   String?  @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -335,7 +361,7 @@ model AttendanceSession {
  * AttendancePunch - Individual attendance record for a student in a session
  */
 model AttendancePunch {
-  id        Int              @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   sessionId Int
   session   AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
@@ -343,10 +369,10 @@ model AttendancePunch {
   enrollmentId Int
   enrollment   Enrollment @relation(fields: [enrollmentId], references: [id])
 
-  status    AttendanceStatus
-  remarks   String?          @db.Text
+  status  AttendanceStatus
+  remarks String?          @db.Text
 
-  markedAt  DateTime         @default(now())
+  markedAt DateTime @default(now())
 
   @@unique([sessionId, enrollmentId])
   @@index([sessionId])

@@ -1549,19 +1549,6 @@ export default function Signup() {
                     <E name="board" />
                   </div>
                 )}
-                {institutionType === InstitutionType.COLLEGE && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Department (optional)</label>
-                    <input
-                      name="department"
-                      value={formData.department}
-                      onChange={handleChange}
-                      placeholder="e.g., Computer Science"
-                      className="mt-1 w-full rounded-lg border px-3 py-2"
-                    />
-                    <E name="department" />
-                  </div>
-                )}
               </div>
             </div>
           )}

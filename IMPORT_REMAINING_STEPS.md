@@ -1,11 +1,11 @@
 # Excel Import Feature - Remaining Steps
 
-## Current Status: Step 3 Completed ✅
+## Current Status: Step 4 Completed ✅
 - Step 1: Download Template ✅
 - Step 2: Upload File ✅
 - Step 3: Validate & Map ✅
-- Step 4: Preview ⏳ (Next)
-- Step 5: Save ⏳ (Final)
+- Step 4: Preview ✅
+- Step 5: Save ⏳ (Next - Final)
 
 ---
 

@@ -623,19 +623,123 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing }) {
   );
 }
 
-// Step 4: Preview (Placeholder)
-function StepPreview({ type, typeColor }) {
+// Step 4: Preview
+function StepPreview({ type, typeColor, parsedData }) {
+  const [showAll, setShowAll] = useState(false);
+
+  if (!parsedData) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">⚠️</div>
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">
+          No Data Available
+        </h3>
+        <p className="text-gray-600">
+          Please go back and complete the validation step first.
+        </p>
+      </div>
+    );
+  }
+
+  const { stats, rows } = parsedData;
+
+  // Only show valid rows (no errors)
+  const validRows = rows.filter(row => !row.hasErrors);
+  const displayRows = showAll ? validRows : validRows.slice(0, 10);
+
+  // Get all field names from first row
+  const sampleRow = validRows[0];
+  const fieldNames = sampleRow ? Object.keys(sampleRow.data) : [];
+
   return (
-    <div className="text-center py-12">
-      <div className="text-6xl mb-4">👀</div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">
-        Preview Data
-      </h3>
-      <p className="text-gray-600">
-        Review all records before saving to database.
-        <br />
-        (Will be implemented in Step 4)
-      </p>
+    <div className="space-y-6">
+      {/* Summary Header */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+        <h3 className="text-xl font-semibold text-gray-900 mb-3 flex items-center">
+          <span className="text-3xl mr-3">👀</span>
+          Preview {type === 'faculty' ? 'Faculty' : 'Student'} Data
+        </h3>
+        <div className="grid grid-cols-3 gap-4 mt-4">
+          <div className="bg-white rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-green-600">{validRows.length}</div>
+            <div className="text-sm text-gray-600">Ready to Import</div>
+          </div>
+          <div className="bg-white rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-yellow-600">{stats.withWarnings}</div>
+            <div className="text-sm text-gray-600">With Warnings</div>
+          </div>
+          <div className="bg-white rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-red-600">{stats.withErrors}</div>
+            <div className="text-sm text-gray-600">Skipped (Errors)</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Data Preview Table */}
+      <div className="border rounded-lg overflow-hidden">
+        <div className="max-h-96 overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-100 sticky top-0">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">#</th>
+                {fieldNames.map((field, idx) => (
+                  <th key={idx} className="px-3 py-2 text-left font-medium text-gray-700 border-b capitalize">
+                    {field.replace(/([A-Z])/g, ' $1').trim()}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {displayRows.map((row, idx) => (
+                <tr key={idx} className="border-b hover:bg-gray-50">
+                  <td className="px-3 py-2 text-gray-600">{idx + 1}</td>
+                  {fieldNames.map((field, fieldIdx) => (
+                    <td key={fieldIdx} className="px-3 py-2 text-gray-700">
+                      {row.data[field] || '-'}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Show More/Less Toggle */}
+      {validRows.length > 10 && (
+        <div className="text-center">
+          <button
+            onClick={() => setShowAll(!showAll)}
+            className={`px-4 py-2 bg-${typeColor}-100 text-${typeColor}-700 rounded-lg hover:bg-${typeColor}-200 font-medium transition-colors`}
+          >
+            {showAll ? 'Show Less' : `Show All ${validRows.length} Rows`}
+          </button>
+        </div>
+      )}
+
+      {/* Important Notes */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <h4 className="font-semibold text-yellow-900 mb-2 flex items-center">
+          <span className="text-xl mr-2">💡</span>
+          What happens next?
+        </h4>
+        <ul className="list-disc list-inside text-sm text-yellow-800 space-y-1 ml-6">
+          <li>All {validRows.length} valid records will be imported</li>
+          <li>Existing records (duplicate email/ID) will be updated</li>
+          <li>New records will be created with auto-generated passwords</li>
+          <li>Users will be assigned to your institution automatically</li>
+          {type === 'faculty' && <li>Faculty members can log in immediately after import</li>}
+          {type === 'student' && <li>Students can log in immediately after import</li>}
+          <li>Rows with errors ({stats.withErrors}) will be skipped</li>
+        </ul>
+      </div>
+
+      {/* Action Info */}
+      <div className="text-center text-gray-600">
+        <p className="text-sm">
+          Review the data above carefully. Click <strong>"Next"</strong> to proceed with the import.
+        </p>
+      </div>
     </div>
   );
 }
