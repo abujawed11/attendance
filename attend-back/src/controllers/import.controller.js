@@ -339,6 +339,8 @@ function validateDate(dateStr) {
     // Excel date serial number
     const excelEpoch = new Date(1899, 11, 30); // December 30, 1899
     const date = new Date(excelEpoch.getTime() + dateStr * 24 * 60 * 60 * 1000);
+    // Set time to noon to avoid timezone issues
+    date.setHours(12, 0, 0, 0);
     return date;
   }
 
@@ -367,8 +369,9 @@ function validateDate(dateStr) {
 
   if (fullYear < 1900 || fullYear > 2100) return null;
 
-  // Create date and validate it's a real date (handles feb 30, etc)
-  const date = new Date(fullYear, month - 1, day);
+  // Create date at noon (12:00) to avoid timezone conversion issues
+  // This prevents the date from shifting to previous day when converted to UTC
+  const date = new Date(fullYear, month - 1, day, 12, 0, 0, 0);
   if (date.getDate() !== day || date.getMonth() !== month - 1 || date.getFullYear() !== fullYear) {
     return null; // Invalid date like Feb 30
   }
@@ -1007,11 +1010,13 @@ async function importFacultyRecord(rowData, institutionId, institutionType, inst
             employeeId: String(rowData.employeeId),
             department: rowData.department,
             qualification: rowData.qualification,
+            joiningDate: joiningDate,
           },
           update: {
             employeeId: String(rowData.employeeId),
             department: rowData.department,
             qualification: rowData.qualification,
+            joiningDate: joiningDate,
           }
         }
       };
@@ -1025,12 +1030,14 @@ async function importFacultyRecord(rowData, institutionId, institutionType, inst
             department: rowData.department,
             designation: rowData.designation,
             qualification: rowData.qualification,
+            joiningDate: joiningDate,
           },
           update: {
             employeeId: String(rowData.employeeId),
             department: rowData.department,
             designation: rowData.designation,
             qualification: rowData.qualification,
+            joiningDate: joiningDate,
           }
         }
       };
@@ -1065,6 +1072,7 @@ async function importFacultyRecord(rowData, institutionId, institutionType, inst
           employeeId: String(rowData.employeeId),
           department: rowData.department,
           qualification: rowData.qualification,
+          joiningDate: joiningDate,
         }
       };
     } else {
@@ -1076,6 +1084,7 @@ async function importFacultyRecord(rowData, institutionId, institutionType, inst
           department: rowData.department,
           designation: rowData.designation,
           qualification: rowData.qualification,
+          joiningDate: joiningDate,
         }
       };
     }

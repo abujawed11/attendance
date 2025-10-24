@@ -155,6 +155,7 @@ model FacultySchoolProfile {
   department      String // English, Physics, Mathematics, etc.
   employeeId      String          @unique
   qualification   String          @default("Not Specified") // B.Ed, M.Ed, Ph.D, etc.
+  joiningDate     DateTime? // Date when faculty joined the institution
 
   @@index([employeeId])
 }
@@ -169,6 +170,7 @@ model FacultyCollegeProfile {
   designation     String // Professor, Assistant Professor, Lecturer, etc.
   employeeId      String          @unique
   qualification   String          @default("Not Specified") // B.Tech, M.Tech, Ph.D, etc.
+  joiningDate     DateTime? // Date when faculty joined the institution
 
   @@index([employeeId])
 }
