@@ -7,6 +7,10 @@ const { authenticate, requireRole } = require('../middleware/auth.middleware');
 router.use(authenticate);
 router.use(requireRole('ADMIN'));
 
+// User listing
+router.get('/faculty', adminController.getFaculty);
+router.get('/students', adminController.getStudents);
+
 // Section management
 router.post('/sections', adminController.createSection);
 router.get('/sections', adminController.getSections);

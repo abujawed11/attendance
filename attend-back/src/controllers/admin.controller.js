@@ -410,6 +410,229 @@ async function getSectionFaculty(req, res) {
   }
 }
 
+/**
+ * Get all faculty with filters and pagination
+ * GET /api/admin/faculty?institutionId=1&search=john&department=CS&page=1&limit=20
+ */
+async function getFaculty(req, res) {
+  try {
+    const {
+      institutionId,
+      search,
+      department,
+      designation,
+      qualification,
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get admin's institution ID from authenticated user
+    const adminInstitutionId = req.user?.institutionId;
+
+    if (!adminInstitutionId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin must be associated with an institution',
+      });
+    }
+
+    // Build where clause - ALWAYS filter by admin's institution
+    const where = {
+      roleType: 'FACULTY',
+      institutionId: adminInstitutionId,
+    };
+
+    // Search by name or email
+    if (search && search.trim()) {
+      where.OR = [
+        { fullName: { contains: search.trim(), mode: 'insensitive' } },
+        { email: { contains: search.trim(), mode: 'insensitive' } },
+      ];
+    }
+
+    // Get institution type to determine which profile to filter
+    const institution = await prisma.institution.findUnique({
+      where: { id: adminInstitutionId },
+      select: { type: true },
+    });
+    const institutionType = institution?.type;
+
+    // Department, designation, qualification filters
+    if (department || designation || qualification) {
+      if (institutionType === 'SCHOOL') {
+        where.facultySchoolProfile = {};
+        if (department) where.facultySchoolProfile.department = { contains: department, mode: 'insensitive' };
+        if (qualification) where.facultySchoolProfile.qualification = { contains: qualification, mode: 'insensitive' };
+      } else if (institutionType === 'COLLEGE') {
+        where.facultyCollegeProfile = {};
+        if (department) where.facultyCollegeProfile.department = { contains: department, mode: 'insensitive' };
+        if (designation) where.facultyCollegeProfile.designation = { contains: designation, mode: 'insensitive' };
+        if (qualification) where.facultyCollegeProfile.qualification = { contains: qualification, mode: 'insensitive' };
+      }
+    }
+
+    // Get total count
+    const total = await prisma.user.count({ where });
+
+    // Get paginated results
+    const faculty = await prisma.user.findMany({
+      where,
+      skip,
+      take: limitNum,
+      include: {
+        facultySchoolProfile: true,
+        facultyCollegeProfile: true,
+      },
+      orderBy: {
+        fullName: 'asc',
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        faculty,
+        institutionType,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Get faculty error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch faculty',
+      error: error.message,
+    });
+  }
+}
+
+/**
+ * Get all students with filters and pagination
+ * GET /api/admin/students?institutionId=1&search=john&class=10&section=A&page=1&limit=20
+ */
+async function getStudents(req, res) {
+  try {
+    const {
+      institutionId,
+      search,
+      class: studentClass,
+      section,
+      department,
+      yearOfStudy,
+      parentPhone,
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get admin's institution ID from authenticated user
+    const adminInstitutionId = req.user?.institutionId;
+
+    if (!adminInstitutionId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin must be associated with an institution',
+      });
+    }
+
+    // Build where clause - ALWAYS filter by admin's institution
+    const where = {
+      roleType: 'STUDENT',
+      institutionId: adminInstitutionId,
+    };
+
+    // Search by name or email
+    if (search && search.trim()) {
+      where.OR = [
+        { fullName: { contains: search.trim(), mode: 'insensitive' } },
+        { email: { contains: search.trim(), mode: 'insensitive' } },
+      ];
+    }
+
+    // Get institution type
+    const institution = await prisma.institution.findUnique({
+      where: { id: adminInstitutionId },
+      select: { type: true },
+    });
+    const institutionType = institution?.type;
+
+    // School-specific filters
+    if (institutionType === 'SCHOOL' && (studentClass || section || parentPhone)) {
+      where.studentSchoolProfile = {};
+      if (studentClass) where.studentSchoolProfile.class = studentClass;
+      if (section) where.studentSchoolProfile.section = section;
+      if (parentPhone) where.studentSchoolProfile.parentPhone = { contains: parentPhone };
+    }
+
+    // College-specific filters
+    if (institutionType === 'COLLEGE' && (department || yearOfStudy)) {
+      where.studentCollegeProfile = {};
+      if (department) where.studentCollegeProfile.department = { contains: department, mode: 'insensitive' };
+      if (yearOfStudy) where.studentCollegeProfile.yearOfStudy = parseInt(yearOfStudy);
+    }
+
+    // Handle search by roll number (check both school and college profiles)
+    if (search && search.trim() && !isNaN(search.trim())) {
+      const rollNo = search.trim();
+      where.OR = [
+        ...(where.OR || []),
+        { studentSchoolProfile: { rollNo: rollNo } },
+        { studentCollegeProfile: { regNo: rollNo } },
+      ];
+    }
+
+    // Get total count
+    const total = await prisma.user.count({ where });
+
+    // Get paginated results
+    const students = await prisma.user.findMany({
+      where,
+      skip,
+      take: limitNum,
+      include: {
+        studentSchoolProfile: true,
+        studentCollegeProfile: true,
+      },
+      orderBy: {
+        fullName: 'asc',
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        students,
+        institutionType,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Get students error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch students',
+      error: error.message,
+    });
+  }
+}
+
 module.exports = {
   createSection,
   getSections,
@@ -417,4 +640,6 @@ module.exports = {
   assignFacultyToSection,
   getSectionEnrollments,
   getSectionFaculty,
+  getFaculty,
+  getStudents,
 };

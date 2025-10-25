@@ -157,6 +157,40 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* View Users Section */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden mb-8">
+          <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
+            <div className="flex items-center mb-2">
+              <span className="text-4xl mr-3">👥</span>
+              <h3 className="text-2xl font-bold">View Users</h3>
+            </div>
+            <p className="text-indigo-100">
+              Browse, search, and filter faculty and students
+            </p>
+          </div>
+          <div className="p-6">
+            <p className="text-gray-600 mb-6">
+              View all faculty and students in your institution with advanced search and filtering options.
+            </p>
+            <div className="grid md:grid-cols-2 gap-4">
+              <button
+                onClick={() => navigate('/admin/users?type=faculty')}
+                className="flex items-center justify-center gap-3 px-6 py-4 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 font-medium transition-colors border-2 border-blue-200"
+              >
+                <span className="text-2xl">👨‍🏫</span>
+                <span>View Faculty</span>
+              </button>
+              <button
+                onClick={() => navigate('/admin/users?type=students')}
+                className="flex items-center justify-center gap-3 px-6 py-4 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 font-medium transition-colors border-2 border-green-200"
+              >
+                <span className="text-2xl">👨‍🎓</span>
+                <span>View Students</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Quick Stats */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <h3 className="text-xl font-semibold mb-4">Quick Stats</h3>
