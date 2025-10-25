@@ -70,7 +70,7 @@ model User {
   password  String
   roleType  RoleType
   status    String   @default("active")
-  phone     String? // useful for parents/faculty
+  phone     String?  @unique // useful for parents/faculty - UNIQUE to identify parent users
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -128,6 +128,12 @@ model StudentSchoolProfile {
   section         String // e.g., "A" - now required
   rollNo          String
   dob             DateTime
+
+  // Parent/Guardian information (stored here for easy access)
+  // Optional to handle existing records, but required for new imports
+  parentName      String?
+  parentEmail     String?
+  parentPhone     String?
 }
 
 model StudentCollegeProfile {
@@ -140,6 +146,7 @@ model StudentCollegeProfile {
   yearOfStudy     Int // 1..8
   semester        Int // 1..16 - now required
   regNo           String // roll/registration no
+  dob             DateTime? // Optional to handle existing records without DOB
 }
 
 /**

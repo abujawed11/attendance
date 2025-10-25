@@ -545,9 +545,17 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
     // Clear all duplicate-related errors first
     const clearedValidations = validationResults.map(v => ({
       ...v,
-      errors: v.errors.filter(e => !e.message.includes('Duplicate') || e.message.includes('already exists in database')),
+      errors: v.errors.filter(e =>
+        !e.message.includes('Duplicate') &&
+        !e.message.includes('inconsistent') &&
+        !e.message.includes('already exists in database')
+      ),
       warnings: v.warnings
     }));
+
+    // Track parent email/phone consistency for school students
+    const parentEmailToPhone = new Map();
+    const parentPhoneToEmail = new Map();
 
     // Re-check duplicates for all rows
     rows.forEach((currentRow, index) => {
@@ -597,14 +605,65 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
 
       // Roll number duplicates (student only)
       if (type === 'student' && currentRow.data.rollNumber) {
-        const rollNumberDuplicates = otherRows.filter(r =>
-          r.data.rollNumber && String(r.data.rollNumber).trim() === String(currentRow.data.rollNumber).trim()
-        );
+        let rollNumberDuplicates;
+
+        if (isSchoolStudent) {
+          // For school: Check duplicates by rollNumber + class + section combination
+          // Same roll number can exist in different sections
+          rollNumberDuplicates = otherRows.filter(r =>
+            r.data.rollNumber &&
+            String(r.data.rollNumber).trim() === String(currentRow.data.rollNumber).trim() &&
+            String(r.data.class || '').trim() === String(currentRow.data.class || '').trim() &&
+            String(r.data.section || '').trim() === String(currentRow.data.section || '').trim()
+          );
+        } else {
+          // For college: Registration number must be unique across all students
+          rollNumberDuplicates = otherRows.filter(r =>
+            r.data.rollNumber && String(r.data.rollNumber).trim() === String(currentRow.data.rollNumber).trim()
+          );
+        }
+
         if (rollNumberDuplicates.length > 0) {
+          const errorMsg = isSchoolStudent
+            ? `Duplicate roll number in Excel file for Class ${currentRow.data.class}, Section ${currentRow.data.section} (also in rows: ${rollNumberDuplicates.map(r => r.rowIndex).join(', ')})`
+            : `Duplicate registration number in Excel file (also in rows: ${rollNumberDuplicates.map(r => r.rowIndex).join(', ')})`;
+
           validation.errors.push({
             field: 'rollNumber',
-            message: `Duplicate roll number in Excel file (also in rows: ${rollNumberDuplicates.map(r => r.rowIndex).join(', ')})`
+            message: errorMsg
           });
+        }
+      }
+
+      // Parent email/phone consistency checks (for school students only)
+      if (isSchoolStudent && currentRow.data.parentEmail && currentRow.data.parentPhone) {
+        const parentEmail = String(currentRow.data.parentEmail).trim().toLowerCase();
+        const parentPhone = String(currentRow.data.parentPhone).trim();
+
+        // Check if this parent email already exists with a different phone
+        if (parentEmailToPhone.has(parentEmail)) {
+          const existingPhone = parentEmailToPhone.get(parentEmail);
+          if (existingPhone !== parentPhone) {
+            validation.errors.push({
+              field: 'parentEmail',
+              message: `Parent email has inconsistent phone numbers in Excel file (${existingPhone} vs ${parentPhone})`
+            });
+          }
+        } else {
+          parentEmailToPhone.set(parentEmail, parentPhone);
+        }
+
+        // Check if this parent phone already exists with a different email
+        if (parentPhoneToEmail.has(parentPhone)) {
+          const existingEmail = parentPhoneToEmail.get(parentPhone);
+          if (existingEmail !== parentEmail) {
+            validation.errors.push({
+              field: 'parentPhone',
+              message: `Parent phone has inconsistent emails in Excel file (${existingEmail} vs ${parentEmail})`
+            });
+          }
+        } else {
+          parentPhoneToEmail.set(parentPhone, parentEmail);
         }
       }
 
@@ -843,13 +902,31 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
 
     // Roll number duplicates (student only)
     if (type === 'student') {
-      const rollNumberDuplicates = otherRows.filter(r =>
-        r.data.rollNumber && String(r.data.rollNumber).trim() === String(editFormData.rollNumber).trim()
-      );
+      let rollNumberDuplicates;
+
+      if (isSchoolStudent) {
+        // For school: Check duplicates by rollNumber + class + section combination
+        rollNumberDuplicates = otherRows.filter(r =>
+          r.data.rollNumber &&
+          String(r.data.rollNumber).trim() === String(editFormData.rollNumber || '').trim() &&
+          String(r.data.class || '').trim() === String(editFormData.class || '').trim() &&
+          String(r.data.section || '').trim() === String(editFormData.section || '').trim()
+        );
+      } else {
+        // For college: Registration number must be unique
+        rollNumberDuplicates = otherRows.filter(r =>
+          r.data.rollNumber && String(r.data.rollNumber).trim() === String(editFormData.rollNumber).trim()
+        );
+      }
+
       if (rollNumberDuplicates.length > 0) {
+        const errorMsg = isSchoolStudent
+          ? `Duplicate roll number in Excel file for Class ${editFormData.class}, Section ${editFormData.section} (also in rows: ${rollNumberDuplicates.map(r => r.rowIndex).join(', ')})`
+          : `Duplicate registration number in Excel file (also in rows: ${rollNumberDuplicates.map(r => r.rowIndex).join(', ')})`;
+
         errors.push({
           field: 'rollNumber',
-          message: `Duplicate roll number in Excel file (also in rows: ${rollNumberDuplicates.map(r => r.rowIndex).join(', ')})`
+          message: errorMsg
         });
       }
     }

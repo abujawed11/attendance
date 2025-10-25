@@ -12,7 +12,8 @@
       "Bash(node scripts/create-test-invite.js:*)",
       "Bash(npx prisma generate:*)",
       "Bash(node scripts/seed-attendance.js)",
-      "Bash(npx prisma format)"
+      "Bash(npx prisma format)",
+      "Bash(node scripts/check-duplicate-phones.js:*)"
     ],
     "deny": [],
     "ask": []

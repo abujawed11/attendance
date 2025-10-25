@@ -630,10 +630,10 @@ async function validateFacultyRow(rowData, rowIndex, institutionId, institutionT
   }
 
   if (rowData.phone) {
-    const existingPhone = await prisma.user.findFirst({
+    // Phone is globally unique in User table
+    const existingPhone = await prisma.user.findUnique({
       where: {
-        phone: String(rowData.phone).trim(),
-        institutionId: institutionId
+        phone: String(rowData.phone).trim()
       }
     });
     if (existingPhone) {
@@ -720,8 +720,39 @@ async function validateStudentRow(rowData, rowIndex, institutionId, institutionT
       errors.push({ field: 'parentPhone', message: 'Parent phone must be 10 digits' });
     }
 
-    // Note: Parent email and phone can be same for multiple students (siblings)
-    // So we don't check for duplicates
+    // Check if parent email exists with a DIFFERENT phone number (data inconsistency)
+    if (rowData.parentEmail && validateEmail(rowData.parentEmail)) {
+      const existingParentByEmail = await prisma.user.findUnique({
+        where: { email: rowData.parentEmail }
+      });
+
+      if (existingParentByEmail) {
+        // Parent email exists - check if phone matches
+        if (existingParentByEmail.phone && existingParentByEmail.phone !== String(rowData.parentPhone).trim()) {
+          errors.push({
+            field: 'parentEmail',
+            message: `Parent email already exists with different phone number (${existingParentByEmail.phone})`
+          });
+        }
+      }
+    }
+
+    // Check if parent phone exists with a DIFFERENT email (data inconsistency)
+    if (rowData.parentPhone && validatePhone(rowData.parentPhone)) {
+      const existingParentByPhone = await prisma.user.findUnique({
+        where: { phone: String(rowData.parentPhone).trim() }
+      });
+
+      if (existingParentByPhone) {
+        // Parent phone exists - check if email matches
+        if (existingParentByPhone.email && existingParentByPhone.email !== rowData.parentEmail.trim()) {
+          errors.push({
+            field: 'parentPhone',
+            message: `Parent phone already exists with different email (${existingParentByPhone.email})`
+          });
+        }
+      }
+    }
 
   } else if (institutionType === 'COLLEGE') {
     // College-specific validations
@@ -760,10 +791,10 @@ async function validateStudentRow(rowData, rowIndex, institutionId, institutionT
     }
 
     if (rowData.phone) {
-      const existingPhone = await prisma.user.findFirst({
+      // Phone is globally unique in User table
+      const existingPhone = await prisma.user.findUnique({
         where: {
-          phone: String(rowData.phone).trim(),
-          institutionId: institutionId
+          phone: String(rowData.phone).trim()
         }
       });
       if (existingPhone) {
@@ -903,6 +934,8 @@ async function parseAndValidateFile(req, res) {
     const phoneMap = new Map();
     const employeeIdMap = new Map();
     const rollNumberMap = new Map();
+    const parentEmailToPhoneMap = new Map(); // For school students: track parent email -> phone consistency
+    const parentPhoneToEmailMap = new Map(); // For school students: track parent phone -> email consistency
 
     for (let i = 0; i < parsedRows.length; i++) {
       const row = parsedRows[i];
@@ -944,8 +977,9 @@ async function parseAndValidateFile(req, res) {
         }
       }
 
-      // Check duplicate phone numbers within file
-      if (row.data.phone) {
+      // Check duplicate phone numbers within file (only for faculty and college students)
+      // For school students: parent phone can be duplicated (siblings share same parent)
+      if (row.data.phone && (type === 'faculty' || (type === 'student' && institutionType === 'COLLEGE'))) {
         const phone = String(row.data.phone).trim();
         if (phoneMap.has(phone)) {
           const duplicateRows = phoneMap.get(phone);
@@ -1059,6 +1093,40 @@ async function parseAndValidateFile(req, res) {
           }
         } else {
           rollNumberMap.set(rollNumberKey, [row.rowIndex]);
+        }
+      }
+
+      // Check parent email/phone consistency within file (for school students)
+      if (type === 'student' && institutionType === 'SCHOOL' && row.data.parentEmail && row.data.parentPhone) {
+        const parentEmail = String(row.data.parentEmail).trim().toLowerCase();
+        const parentPhone = String(row.data.parentPhone).trim();
+
+        // Track parent email -> phone mapping
+        if (parentEmailToPhoneMap.has(parentEmail)) {
+          const existingPhone = parentEmailToPhoneMap.get(parentEmail);
+          if (existingPhone !== parentPhone) {
+            validation.errors.push({
+              field: 'parentEmail',
+              message: `Parent email has inconsistent phone numbers in Excel file (${existingPhone} vs ${parentPhone})`
+            });
+            row.hasErrors = true;
+          }
+        } else {
+          parentEmailToPhoneMap.set(parentEmail, parentPhone);
+        }
+
+        // Track parent phone -> email mapping
+        if (parentPhoneToEmailMap.has(parentPhone)) {
+          const existingEmail = parentPhoneToEmailMap.get(parentPhone);
+          if (existingEmail !== parentEmail) {
+            validation.errors.push({
+              field: 'parentPhone',
+              message: `Parent phone has inconsistent emails in Excel file (${existingEmail} vs ${parentEmail})`
+            });
+            row.hasErrors = true;
+          }
+        } else {
+          parentPhoneToEmailMap.set(parentPhone, parentEmail);
         }
       }
     }
@@ -1302,15 +1370,42 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
   if (institutionType === 'SCHOOL') {
     // For SCHOOL students: Create parent account and link student
     // Parent uses their email for login, student gets a generated email
+    // Find parent by PHONE or EMAIL (both unique) - siblings share the same parent
 
-    // Check if parent already exists (same parent can have multiple children)
-    let parentUser = await prisma.user.findUnique({
-      where: { email: rowData.parentEmail },
+    // Check if parent already exists by phone OR email
+    let parentUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { phone: String(rowData.parentPhone).trim() },
+          { email: rowData.parentEmail.trim() }
+        ],
+        roleType: 'PARENT'
+      },
       include: { parentProfile: true }
     });
 
-    if (!parentUser) {
-      // Create parent user account
+    if (parentUser) {
+      // Parent exists - update name, email, and phone if different
+      const updateData = {};
+      if (parentUser.fullName !== rowData.parentName.trim()) {
+        updateData.fullName = rowData.parentName.trim();
+      }
+      if (parentUser.email !== rowData.parentEmail.trim()) {
+        updateData.email = rowData.parentEmail.trim();
+      }
+      if (parentUser.phone !== String(rowData.parentPhone).trim()) {
+        updateData.phone = String(rowData.parentPhone).trim();
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        parentUser = await prisma.user.update({
+          where: { id: parentUser.id },
+          data: updateData,
+          include: { parentProfile: true }
+        });
+      }
+    } else {
+      // Create new parent user account
       const parentPassword = generateDefaultPassword(rowData.parentName, rowData.parentPhone);
       const hashedParentPassword = await bcrypt.hash(parentPassword, 10);
       const parentPublicId = await getNextSequenceId('user');
@@ -1318,10 +1413,10 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
       parentUser = await prisma.user.create({
         data: {
           publicId: parentPublicId,
-          email: rowData.parentEmail,
+          email: rowData.parentEmail.trim(),
           password: hashedParentPassword,
-          fullName: rowData.parentName,
-          phone: String(rowData.parentPhone),
+          fullName: rowData.parentName.trim(),
+          phone: String(rowData.parentPhone).trim(),
           roleType: 'PARENT',
           institutionId: institutionId,
           parentProfile: {
@@ -1362,6 +1457,9 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
               section: String(rowData.section),
               rollNo: String(rowData.rollNumber),
               dob: dob,
+              parentName: rowData.parentName,
+              parentEmail: rowData.parentEmail,
+              parentPhone: String(rowData.parentPhone).trim(),
             }
           }
         }
@@ -1417,6 +1515,9 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
               section: String(rowData.section),
               rollNo: String(rowData.rollNumber),
               dob: dob,
+              parentName: rowData.parentName,
+              parentEmail: rowData.parentEmail,
+              parentPhone: String(rowData.parentPhone).trim(),
             }
           }
         }

@@ -265,12 +265,16 @@ export default function AddUsersPanel({ type, onClose, institutionType }) {
             }
 
             // Match error message to field
-            if (errorMsg.includes('email') && errorMsg.includes('already exists')) {
+            if (errorMsg.includes('parentemail') || errorMsg.includes('parent email')) {
+              newRowErrors[row.id].parentEmail = err.error;
+            } else if (errorMsg.includes('parentphone') || errorMsg.includes('parent phone')) {
+              newRowErrors[row.id].parentPhone = err.error;
+            } else if (errorMsg.includes('email') && errorMsg.includes('already exists')) {
               newRowErrors[row.id].email = 'Email already exists';
-            } else if (errorMsg.includes('email')) {
+            } else if (errorMsg.includes('email') || errorMsg.includes('user_email_key')) {
               newRowErrors[row.id].email = err.error;
-            } else if (errorMsg.includes('phone')) {
-              newRowErrors[row.id].phone = err.error;
+            } else if (errorMsg.includes('phone') || errorMsg.includes('user_phone_key')) {
+              newRowErrors[row.id].phone = 'Phone number already exists';
             } else if (errorMsg.includes('employee') || errorMsg.includes('employeeid')) {
               newRowErrors[row.id].employeeId = 'Employee ID already exists';
             } else if (errorMsg.includes('roll') || errorMsg.includes('registration')) {
