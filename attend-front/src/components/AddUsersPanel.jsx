@@ -275,6 +275,8 @@ export default function AddUsersPanel({ type, onClose, institutionType }) {
               newRowErrors[row.id].employeeId = 'Employee ID already exists';
             } else if (errorMsg.includes('roll') || errorMsg.includes('registration')) {
               newRowErrors[row.id].rollNumber = err.error;
+            } else if (errorMsg.includes('date of birth') || errorMsg.includes('dateofbirth') || errorMsg.includes('invalid date')) {
+              newRowErrors[row.id].dateOfBirth = err.error;
             } else {
               // Generic error - show on fullName field or first field
               newRowErrors[row.id].fullName = err.error;

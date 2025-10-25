@@ -427,17 +427,42 @@ function validateDate(dateStr) {
   // Convert to string and trim
   const dateString = String(dateStr).trim();
 
-  // Try to parse DD-MM-YYYY or DD/MM/YYYY format (with or without leading zeros)
-  // Accepts: 05-09-2022, 5-9-2022, 05/09/2022, 5/9/2022
+  // Split by common separators (-, /)
   const parts = dateString.split(/[-\/]/);
   if (parts.length !== 3) return null;
 
-  const day = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10);
-  const year = parseInt(parts[2], 10);
+  let day, month, year;
+
+  // Try to detect format based on the values
+  const part0 = parseInt(parts[0], 10);
+  const part1 = parseInt(parts[1], 10);
+  const part2 = parseInt(parts[2], 10);
 
   // Validate parsed numbers
-  if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+  if (isNaN(part0) || isNaN(part1) || isNaN(part2)) return null;
+
+  // Determine format:
+  // If first part > 31, it's likely YYYY-MM-DD (from date picker)
+  // If third part > 31 or is 4 digits, it's likely DD-MM-YYYY or DD/MM/YYYY (from Excel)
+  if (part0 > 31 || part0.toString().length === 4) {
+    // YYYY-MM-DD format (from date picker)
+    year = part0;
+    month = part1;
+    day = part2;
+  } else if (part2 > 31 || part2.toString().length === 4) {
+    // DD-MM-YYYY or DD/MM/YYYY format (from Excel or manual input)
+    day = part0;
+    month = part1;
+    year = part2;
+  } else {
+    // Ambiguous - default to DD-MM-YYYY format
+    // Accepts: 22/02/2025, 22-02-2025, 22/2/2025, 9/5/2022, 09/05/2022
+    day = part0;
+    month = part1;
+    year = part2;
+  }
+
+  // Validate ranges
   if (month < 1 || month > 12) return null;
   if (day < 1 || day > 31) return null;
 
@@ -521,12 +546,19 @@ function generateDefaultPassword(fullName, phone) {
 
 /**
  * Generate email for school student
- * Format: rollnumber@schooldomain.student.in
- * Example: 10A001@xyz.student.in (if school name is "XYZ Public School")
+ * Format: firstname_stu{id}@schooldomain.student.in
+ * Example: john_stu12345@xyz.student.in
+ *
+ * This email is PERMANENT and doesn't change when student moves to next class/section
+ * The studentId is included to ensure uniqueness (handles students with same first name)
  */
-function generateSchoolStudentEmail(rollNumber, institutionName) {
-  // Clean roll number - remove spaces and special characters
-  const cleanRollNo = String(rollNumber).toLowerCase().replace(/[^a-z0-9]/g, '');
+function generateSchoolStudentEmail(fullName, studentId, institutionName) {
+  // Extract first name from full name
+  const nameParts = fullName.trim().split(/\s+/);
+  const firstName = nameParts[0].toLowerCase();
+
+  // Clean first name - remove special characters, keep only alphanumeric
+  const cleanFirstName = firstName.replace(/[^a-z0-9]/g, '');
 
   // Extract domain from institution name
   // Remove common school suffixes and get first meaningful word
@@ -540,8 +572,10 @@ function generateSchoolStudentEmail(rollNumber, institutionName) {
   // Use first word or fallback to 'school'
   const domain = schoolWords.length > 0 ? schoolWords[0] : 'school';
 
-  // Format: rollnumber@domain.student.in
-  return `${cleanRollNo}@${domain}.student.in`;
+  // Format: firstname_stu{id}@domain.student.in
+  // The ID suffix ensures uniqueness when multiple students have the same first name
+  // This email remains valid throughout the student's school life
+  return `${cleanFirstName}_stu${studentId}@${domain}.student.in`;
 }
 
 /**
@@ -742,23 +776,38 @@ async function validateStudentRow(rowData, rowIndex, institutionId, institutionT
   if (rowData.rollNumber) {
     let existingStudent = null;
     if (institutionType === 'SCHOOL') {
+      // For school: Roll number must be unique within the same class AND section
+      // Same roll number can exist in different sections
+      const whereCondition = {
+        rollNo: String(rowData.rollNumber).trim(),
+        user: { institutionId }
+      };
+
+      // If class and section are provided, check for exact match
+      if (rowData.class && rowData.section) {
+        whereCondition.class = String(rowData.class).trim();
+        whereCondition.section = String(rowData.section).trim();
+      }
+
       existingStudent = await prisma.studentSchoolProfile.findFirst({
-        where: {
-          rollNo: String(rowData.rollNumber).trim(),
-          user: { institutionId }
-        }
+        where: whereCondition
       });
+
+      if (existingStudent) {
+        errors.push({ field: 'rollNumber', message: `Roll Number ${rowData.rollNumber} already exists in Class ${rowData.class}, Section ${rowData.section}` });
+      }
     } else if (institutionType === 'COLLEGE') {
+      // For college: Registration number must be unique across the institution
       existingStudent = await prisma.studentCollegeProfile.findFirst({
         where: {
           regNo: String(rowData.rollNumber).trim(),
           user: { institutionId }
         }
       });
-    }
 
-    if (existingStudent) {
-      errors.push({ field: 'rollNumber', message: 'Roll Number already exists in database' });
+      if (existingStudent) {
+        errors.push({ field: 'rollNumber', message: 'Registration Number already exists in database' });
+      }
     }
   }
 
@@ -965,15 +1014,31 @@ async function parseAndValidateFile(req, res) {
 
       // Check duplicate roll numbers within file (for students)
       if (type === 'student' && row.data.rollNumber) {
-        const rollNumber = String(row.data.rollNumber).trim();
-        if (rollNumberMap.has(rollNumber)) {
-          const duplicateRows = rollNumberMap.get(rollNumber);
+        let rollNumberKey;
+        let errorMessage;
+
+        if (institutionType === 'SCHOOL') {
+          // For school: Check duplicates by rollNumber + class + section combination
+          // Same roll number can exist in different sections
+          const rollNumber = String(row.data.rollNumber).trim();
+          const studentClass = String(row.data.class || '').trim();
+          const section = String(row.data.section || '').trim();
+          rollNumberKey = `${rollNumber}|${studentClass}|${section}`;
+          errorMessage = `Duplicate roll number in Excel file for Class ${studentClass}, Section ${section} (also in rows: `;
+        } else {
+          // For college: Registration number must be unique across all students
+          rollNumberKey = String(row.data.rollNumber).trim();
+          errorMessage = `Duplicate registration number in Excel file (also in rows: `;
+        }
+
+        if (rollNumberMap.has(rollNumberKey)) {
+          const duplicateRows = rollNumberMap.get(rollNumberKey);
           duplicateRows.push(row.rowIndex);
-          rollNumberMap.set(rollNumber, duplicateRows);
+          rollNumberMap.set(rollNumberKey, duplicateRows);
 
           validation.errors.push({
             field: 'rollNumber',
-            message: `Duplicate roll number in Excel file (also in rows: ${duplicateRows.filter(r => r !== row.rowIndex).join(', ')})`
+            message: errorMessage + `${duplicateRows.filter(r => r !== row.rowIndex).join(', ')})`
           });
           row.hasErrors = true;
 
@@ -982,18 +1047,18 @@ async function parseAndValidateFile(req, res) {
             const prevIdx = parsedRows.findIndex(r => r.rowIndex === prevRowIndex);
             if (prevIdx >= 0) {
               const prevValidation = validationResults[prevIdx];
-              const hasError = prevValidation.errors.some(e => e.field === 'rollNumber' && e.message.includes('Duplicate roll number'));
+              const hasError = prevValidation.errors.some(e => e.field === 'rollNumber' && e.message.includes('Duplicate'));
               if (!hasError) {
                 prevValidation.errors.push({
                   field: 'rollNumber',
-                  message: `Duplicate roll number in Excel file (also in rows: ${duplicateRows.filter(r => r !== prevRowIndex).join(', ')})`
+                  message: errorMessage + `${duplicateRows.filter(r => r !== prevRowIndex).join(', ')})`
                 });
                 parsedRows[prevIdx].hasErrors = true;
               }
             }
           }
         } else {
-          rollNumberMap.set(rollNumber, [row.rowIndex]);
+          rollNumberMap.set(rollNumberKey, [row.rowIndex]);
         }
       }
     }
@@ -1268,17 +1333,24 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
     }
 
     // Now create/update the student record (student gets auto-generated email)
-    // Check if student exists by roll number
+    // Check if student exists by roll number + class + section combination
     const existingStudent = await prisma.studentSchoolProfile.findFirst({
       where: {
-        rollNo: String(rowData.rollNumber),
+        rollNo: String(rowData.rollNumber).trim(),
+        class: String(rowData.class).trim(),
+        section: String(rowData.section).trim(),
         user: { institutionId }
       },
       include: { user: true }
     });
 
     if (existingStudent) {
-      // Update existing student
+      // For manual add, don't allow duplicates - throw error
+      if (isManualAdd) {
+        throw new Error(`Roll Number ${rowData.rollNumber} already exists in Class ${rowData.class}, Section ${rowData.section} (Student: ${existingStudent.user.fullName})`);
+      }
+
+      // For Excel import, update existing student
       await prisma.user.update({
         where: { id: existingStudent.user.id },
         data: {
@@ -1320,8 +1392,9 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
       // Create new student with generated email
       const studentPublicId = await getNextSequenceId('user');
 
-      // Generate email for school student: rollnumber@schooldomain.student.in
-      const generatedEmail = generateSchoolStudentEmail(rowData.rollNumber, institution.name);
+      // Generate permanent email for school student: firstname_stu{id}@school.student.in
+      // This email remains valid throughout their school life (doesn't change with class/section)
+      const generatedEmail = generateSchoolStudentEmail(rowData.fullName, studentPublicId, institution.name);
 
       // Generate a default password (though school students typically won't login)
       const studentPassword = generateDefaultPassword(rowData.fullName, rowData.parentPhone);
@@ -1372,6 +1445,15 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
       include: { studentCollegeProfile: true }
     });
 
+    // Also check if registration number already exists
+    const existingRegNo = await prisma.studentCollegeProfile.findFirst({
+      where: {
+        regNo: String(rowData.rollNumber).trim(),
+        user: { institutionId }
+      },
+      include: { user: true }
+    });
+
     if (existingUser) {
       // Check if the existing user belongs to a different institution
       if (existingUser.institutionId !== institutionId) {
@@ -1398,18 +1480,26 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
                 yearOfStudy: parseInt(rowData.yearOfStudy),
                 semester: parseInt(rowData.semester),
                 regNo: String(rowData.rollNumber),
+                dob: dob,
               },
               update: {
                 department: rowData.department,
                 yearOfStudy: parseInt(rowData.yearOfStudy),
                 semester: parseInt(rowData.semester),
                 regNo: String(rowData.rollNumber),
+                dob: dob,
               }
             }
           }
         }
       });
       results.updated++;
+    } else if (existingRegNo) {
+      // Registration number exists for a different user
+      if (isManualAdd) {
+        throw new Error(`Registration Number ${rowData.rollNumber} already exists (Student: ${existingRegNo.user.fullName})`);
+      }
+      throw new Error(`Registration Number ${rowData.rollNumber} is already assigned to ${existingRegNo.user.fullName}`);
     } else {
       // Create new college student
       const publicId = await getNextSequenceId('user');
@@ -1431,6 +1521,7 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
               yearOfStudy: parseInt(rowData.yearOfStudy),
               semester: parseInt(rowData.semester),
               regNo: String(rowData.rollNumber),
+              dob: dob,
             }
           }
         }
