@@ -1385,24 +1385,14 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
     });
 
     if (parentUser) {
-      // Parent exists - update name, email, and phone if different
-      const updateData = {};
+      // Parent exists - only update name (not email/phone to avoid conflicts)
+      // Email and phone are unique identifiers and should match based on validation
       if (parentUser.fullName !== rowData.parentName.trim()) {
-        updateData.fullName = rowData.parentName.trim();
-      }
-      if (parentUser.email !== rowData.parentEmail.trim()) {
-        updateData.email = rowData.parentEmail.trim();
-      }
-      if (parentUser.phone !== String(rowData.parentPhone).trim()) {
-        updateData.phone = String(rowData.parentPhone).trim();
-      }
-
-      if (Object.keys(updateData).length > 0) {
-        parentUser = await prisma.user.update({
+        await prisma.user.update({
           where: { id: parentUser.id },
-          data: updateData,
-          include: { parentProfile: true }
+          data: { fullName: rowData.parentName.trim() }
         });
+        parentUser.fullName = rowData.parentName.trim();
       }
     } else {
       // Create new parent user account
