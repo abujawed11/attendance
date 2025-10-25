@@ -385,8 +385,9 @@
 
 
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import LightRays from "../components/LightRays";
 import { API_ENDPOINTS } from "../config/api";
 import { ALL_SCHOOLS, COLLEGES, ALL_INSTITUTIONS } from "../data/institutions";
 
@@ -656,7 +657,7 @@ function buildPayload(values) {
         },
       };
     }
-  } else if (roleType === RoleType.FACULTY) {
+    } else if (roleType === RoleType.FACULTY) {
     if (institutionType === InstitutionType.SCHOOL) {
       payload.profile = {
         kind: "facultySchool",
@@ -715,7 +716,7 @@ export default function Signup() {
 
   // OTP verification state
   const [step, setStep] = useState(1); // 1: signup form, 2: OTP verification
-  const [otpSent, setOtpSent] = useState(false);
+  // removed unused otpSent state
   const [otp, setOtp] = useState("");
   const [signupPayload, setSignupPayload] = useState(null);
   
@@ -830,7 +831,6 @@ export default function Signup() {
 
       // OTP sent successfully
       setSignupPayload(payload);
-      setOtpSent(true);
       setStep(2);
       alert(`OTP sent to ${formData.email}. Please check your email.`);
     } catch (error) {
@@ -921,8 +921,27 @@ export default function Signup() {
   // OTP Verification Step
   if (step === 2) {
     return (
-      <div className="min-h-screen grid place-items-center bg-gray-50 px-4 py-8">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">
+      <div className="relative min-h-screen bg-black">
+        <div className="fixed inset-0 bg-black" />
+        <div className="absolute top-0 left-0 right-0 h-1/3">
+          <LightRays
+            className="w-full h-full opacity-70"
+            raysOrigin="top-center"
+            raysColor="#ffffff"
+            raysSpeed={0.8}
+            lightSpread={1.2}
+            rayLength={2.2}
+            pulsating={true}
+            fadeDistance={1.2}
+            saturation={1.0}
+            followMouse={true}
+            mouseInfluence={0.08}
+            noiseAmount={0.05}
+            distortion={0.05}
+          />
+        </div>
+        <div className="relative z-10 min-h-screen grid place-items-center px-4 py-8">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">
           <h1 className="text-2xl font-semibold text-center mb-2">Verify Your Email</h1>
           <p className="text-sm text-gray-500 text-center mb-6">
             We've sent a 6-digit OTP to <strong>{formData.email}</strong>
@@ -974,6 +993,7 @@ export default function Signup() {
               </button>
             </div>
           </form>
+          </div>
         </div>
       </div>
     );
@@ -981,8 +1001,27 @@ export default function Signup() {
 
   // Signup Form (Step 1)
   return (
-    <div className="min-h-screen grid place-items-center bg-gray-50 px-4 py-8">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow p-6">
+    <div className="relative min-h-screen bg-black">
+      <div className="fixed inset-0 bg-black" />
+      <div className="absolute top-0 left-0 right-0 h-1/3">
+        <LightRays
+          className="w-full h-full opacity-70"
+          raysOrigin="top-center"
+          raysColor="#ffffff"
+          raysSpeed={0.8}
+          lightSpread={1.2}
+          rayLength={2.2}
+          pulsating={true}
+          fadeDistance={1.2}
+          saturation={1.0}
+          followMouse={true}
+          mouseInfluence={0.08}
+          noiseAmount={0.05}
+          distortion={0.05}
+        />
+      </div>
+      <div className="relative z-10 min-h-screen grid place-items-center px-4 py-8">
+        <div className="w-full max-w-2xl bg-white rounded-2xl shadow p-6">
         <h1 className="text-2xl font-semibold text-center mb-2">Create your account</h1>
         <p className="text-sm text-gray-500 text-center mb-6">Sign up with role-specific details</p>
 
@@ -991,17 +1030,44 @@ export default function Signup() {
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">I am a</label>
-              <select
-                name="roleType"
-                value={roleType}
-                onChange={onChangeRole}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 bg-white focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value={RoleType.STUDENT}>Student</option>
-                <option value={RoleType.FACULTY}>Faculty</option>
-                <option value={RoleType.PARENT}>Parent</option>
-                <option value={RoleType.ADMIN}>Admin</option>
-              </select>
+              <div className="mt-2 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => onChangeRole({ target: { value: RoleType.STUDENT } })}
+                  aria-pressed={roleType === RoleType.STUDENT}
+                  className={`${roleType === RoleType.STUDENT ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'} inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                >
+                  <span aria-hidden>🎓</span>
+                  <span>Student</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeRole({ target: { value: RoleType.FACULTY } })}
+                  aria-pressed={roleType === RoleType.FACULTY}
+                  className={`${roleType === RoleType.FACULTY ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'} inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                >
+                  <span aria-hidden>👩‍🏫</span>
+                  <span>Faculty</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeRole({ target: { value: RoleType.PARENT } })}
+                  aria-pressed={roleType === RoleType.PARENT}
+                  className={`${roleType === RoleType.PARENT ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'} inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                >
+                  <span aria-hidden>👪</span>
+                  <span>Parent</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeRole({ target: { value: RoleType.ADMIN } })}
+                  aria-pressed={roleType === RoleType.ADMIN}
+                  className={`${roleType === RoleType.ADMIN ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'} inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                >
+                  <span aria-hidden>🛠️</span>
+                  <span>Admin</span>
+                </button>
+              </div>
               <E name="roleType" />
             </div>
 
@@ -1595,6 +1661,7 @@ export default function Signup() {
             </a>
           </p>
         </form>
+        </div>
       </div>
     </div>
   );
