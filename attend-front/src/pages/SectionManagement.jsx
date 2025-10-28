@@ -12,6 +12,12 @@ export default function SectionManagement() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Students modal state
+  const [showStudentsModal, setShowStudentsModal] = useState(false);
+  const [selectedSection, setSelectedSection] = useState(null);
+  const [sectionStudents, setSectionStudents] = useState([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+
   // Form state
   const [formData, setFormData] = useState({
     name: '',
@@ -131,6 +137,33 @@ export default function SectionManagement() {
     } catch (error) {
       console.error('Error syncing section:', error);
       alert('Failed to sync enrollments');
+    }
+  };
+
+  const handleViewStudents = async (section) => {
+    try {
+      setSelectedSection(section);
+      setShowStudentsModal(true);
+      setLoadingStudents(true);
+
+      const response = await fetch(`${API_URL}/admin/sections/${section.id}/enrollments`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSectionStudents(data.data);
+      } else {
+        alert(`Failed to fetch students: ${data.message}`);
+      }
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      alert('Failed to fetch students');
+    } finally {
+      setLoadingStudents(false);
     }
   };
 
@@ -270,7 +303,11 @@ export default function SectionManagement() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {sections.map((section) => (
-                    <tr key={section.id} className="hover:bg-gray-50">
+                    <tr
+                      key={section.id}
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={() => handleViewStudents(section)}
+                    >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{section.name}</div>
                         <div className="text-xs text-gray-500">{section.publicId}</div>
@@ -313,7 +350,10 @@ export default function SectionManagement() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <button
-                          onClick={() => handleSyncSection(section.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSyncSection(section.id);
+                          }}
                           className="text-indigo-600 hover:text-indigo-900 font-medium"
                           title="Sync students to this section"
                         >
@@ -492,6 +532,149 @@ export default function SectionManagement() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Students Modal */}
+      {showStudentsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">
+                    Students in {selectedSection?.name}
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {selectedSection?.publicId} • {sectionStudents.length} student(s)
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowStudentsModal(false);
+                    setSelectedSection(null);
+                    setSectionStudents([]);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <span className="text-2xl">×</span>
+                </button>
+              </div>
+
+              {/* Students List */}
+              {loadingStudents ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Loading students...</p>
+                </div>
+              ) : sectionStudents.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">👨‍🎓</div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">No Students Enrolled</h4>
+                  <p className="text-gray-600 mb-4">
+                    Click the "🔄 Sync" button to enroll matching students
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Student Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          ID
+                        </th>
+                        {institutionType === 'SCHOOL' && (
+                          <>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Class
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Roll No
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Parent
+                            </th>
+                          </>
+                        )}
+                        {institutionType === 'COLLEGE' && (
+                          <>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Email
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Reg No
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Year/Sem
+                            </th>
+                          </>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {sectionStudents.map((enrollment) => (
+                        <tr key={enrollment.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {enrollment.student.fullName}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {enrollment.student.publicId}
+                          </td>
+                          {institutionType === 'SCHOOL' && (
+                            <>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {enrollment.student.studentSchoolProfile?.class} {enrollment.student.studentSchoolProfile?.section}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {enrollment.student.studentSchoolProfile?.rollNo}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                <div>{enrollment.student.studentSchoolProfile?.parentName}</div>
+                                <div className="text-xs text-gray-500">{enrollment.student.studentSchoolProfile?.parentPhone}</div>
+                              </td>
+                            </>
+                          )}
+                          {institutionType === 'COLLEGE' && (
+                            <>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                {enrollment.student.email}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {enrollment.student.studentCollegeProfile?.regNo}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                Year {enrollment.student.studentCollegeProfile?.yearOfStudy} / Sem {enrollment.student.studentCollegeProfile?.semester}
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => {
+                    setShowStudentsModal(false);
+                    setSelectedSection(null);
+                    setSectionStudents([]);
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
