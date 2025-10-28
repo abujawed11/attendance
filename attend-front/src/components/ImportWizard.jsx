@@ -523,7 +523,7 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
     );
   }
 
-  const { stats, rows, validationResults, mapping, unmapped } = parsedData;
+  const { stats, rows, validationResults, mapping, unmapped, institutionType } = parsedData;
 
   const filteredRows = rows.filter(row => {
     if (filterStatus === 'all') return true;
@@ -701,37 +701,98 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
     });
   };
 
-  // Helper function to convert Excel serial number to DD-MM-YYYY format
-  const excelSerialToDate = (serial) => {
-    // Check if it's a number (Excel serial)
-    if (typeof serial === 'number' && serial > 1000) {
-      // Excel serial date starts from 1900-01-01
-      const excelEpoch = new Date(1900, 0, 1);
-      const daysOffset = serial - 2; // Excel incorrectly treats 1900 as a leap year
-      const date = new Date(excelEpoch.getTime() + daysOffset * 24 * 60 * 60 * 1000);
+  // Helper function to convert date to YYYY-MM-DD format for HTML date input
+  const excelSerialToDateInput = (serial) => {
+    if (!serial) return '';
 
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const year = date.getFullYear();
+    let date;
 
-      return `${day}-${month}-${year}`;
+    // If it's already a formatted date string (DD-MM-YYYY or DD/MM/YYYY), parse it
+    if (typeof serial === 'string') {
+      const parts = serial.split(/[-\/]/);
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10);
+        const year = parseInt(parts[2], 10);
+
+        // Create date object
+        const fullYear = year < 100 ? 2000 + year : year;
+        date = new Date(fullYear, month - 1, day);
+      } else {
+        return '';
+      }
     }
-    // If it's already a string, return as is
-    return serial;
+    // Handle Excel serial number
+    else if (typeof serial === 'number' && serial > 1000) {
+      const excelEpoch = new Date(1900, 0, 1);
+      const daysOffset = serial - 2;
+      date = new Date(excelEpoch.getTime() + daysOffset * 24 * 60 * 60 * 1000);
+    } else {
+      return '';
+    }
+
+    // Convert to YYYY-MM-DD format for HTML date input
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
   };
 
   const handleEditRow = (row) => {
     setEditingRow(row);
 
-    // Convert Excel serial dates to readable format
-    const formattedData = { ...row.data };
+    // Define all expected fields based on type and institution
+    let allFields = {};
 
-    // Convert date fields if they're Excel serial numbers
+    if (type === 'faculty') {
+      allFields = {
+        fullName: '',
+        email: '',
+        phone: '',
+        employeeId: '',
+        department: '',
+        designation: '',
+        qualification: '',
+        subject: ''
+      };
+    } else if (type === 'student') {
+      const commonFields = {
+        fullName: '',
+        rollNumber: '',
+        dateOfBirth: ''
+      };
+
+      if (institutionType === 'SCHOOL') {
+        allFields = {
+          ...commonFields,
+          class: '',
+          section: '',
+          parentName: '',
+          parentEmail: '',
+          parentPhone: ''
+        };
+      } else if (institutionType === 'COLLEGE') {
+        allFields = {
+          ...commonFields,
+          email: '',
+          phone: '',
+          department: '',
+          yearOfStudy: '',
+          semester: ''
+        };
+      }
+    }
+
+    // Merge with actual data (actual data overrides empty defaults)
+    const formattedData = { ...allFields, ...row.data };
+
+    // Convert date fields to YYYY-MM-DD format for date input
     if (formattedData.dateOfBirth) {
-      formattedData.dateOfBirth = excelSerialToDate(formattedData.dateOfBirth);
+      formattedData.dateOfBirth = excelSerialToDateInput(formattedData.dateOfBirth);
     }
     if (formattedData.joiningDate) {
-      formattedData.joiningDate = excelSerialToDate(formattedData.joiningDate);
+      formattedData.joiningDate = excelSerialToDateInput(formattedData.joiningDate);
     }
 
     setEditFormData(formattedData);
@@ -1435,19 +1496,63 @@ function StepValidateMap({ type, typeColor, parsedData, isProcessing, setParsedD
               </h3>
 
               <div className="space-y-4">
-                {Object.keys(editFormData).map((field) => (
-                  <div key={field}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
-                      {field.replace(/([A-Z])/g, ' $1').trim()}
-                    </label>
-                    <input
-                      type="text"
-                      value={editFormData[field] || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, [field]: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                ))}
+                {(() => {
+                  // Define fields to show based on type and institution
+                  let fieldsToShow = [];
+
+                  if (type === 'faculty') {
+                    fieldsToShow = [
+                      { key: 'fullName', label: 'Full Name', type: 'text', required: true },
+                      { key: 'email', label: 'Email', type: 'email', required: true },
+                      { key: 'phone', label: 'Phone', type: 'tel', required: true },
+                      { key: 'employeeId', label: 'Employee ID', type: 'text', required: true },
+                      { key: 'department', label: 'Department', type: 'text', required: true },
+                      { key: 'designation', label: 'Designation', type: 'text', required: true },
+                      { key: 'qualification', label: 'Qualification', type: 'text', required: true },
+                      { key: 'subject', label: 'Subject', type: 'text', required: false }
+                    ];
+                  } else if (type === 'student') {
+                    if (institutionType === 'SCHOOL') {
+                      fieldsToShow = [
+                        { key: 'fullName', label: 'Full Name', type: 'text', required: true },
+                        { key: 'rollNumber', label: 'Roll Number', type: 'text', required: true },
+                        { key: 'dateOfBirth', label: 'Date of Birth', type: 'date', required: true },
+                        { key: 'class', label: 'Class', type: 'text', required: true },
+                        { key: 'section', label: 'Section', type: 'text', required: true },
+                        { key: 'parentName', label: 'Parent Name', type: 'text', required: true },
+                        { key: 'parentEmail', label: 'Parent Email', type: 'email', required: true },
+                        { key: 'parentPhone', label: 'Parent Phone', type: 'tel', required: true }
+                      ];
+                    } else if (institutionType === 'COLLEGE') {
+                      fieldsToShow = [
+                        { key: 'fullName', label: 'Full Name', type: 'text', required: true },
+                        { key: 'email', label: 'Email', type: 'email', required: true },
+                        { key: 'phone', label: 'Phone', type: 'tel', required: true },
+                        { key: 'dateOfBirth', label: 'Date of Birth', type: 'date', required: true },
+                        { key: 'rollNumber', label: 'Roll/Reg Number', type: 'text', required: true },
+                        { key: 'department', label: 'Department', type: 'text', required: true },
+                        { key: 'yearOfStudy', label: 'Year of Study', type: 'text', required: true },
+                        { key: 'semester', label: 'Semester', type: 'text', required: true }
+                      ];
+                    }
+                  }
+
+                  return fieldsToShow.map((field) => (
+                    <div key={field.key}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {field.label}
+                        {field.required && ' *'}
+                      </label>
+                      <input
+                        type={field.type}
+                        value={editFormData[field.key] || ''}
+                        onChange={(e) => setEditFormData({ ...editFormData, [field.key]: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder={field.label}
+                      />
+                    </div>
+                  ));
+                })()}
               </div>
 
               <div className="flex justify-end gap-3 mt-6">
