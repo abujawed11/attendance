@@ -145,6 +145,8 @@ model StudentCollegeProfile {
   department      String
   yearOfStudy     Int // 1..8
   semester        Int // 1..16 - now required
+  section         String? // "A", "B", "C", "D" - for section assignment (AICTE: 60 per section)
+  batch           String? // "Morning", "Evening", "Weekend" - for shift-based colleges
   regNo           String // roll/registration no
   dob             DateTime? // Optional to handle existing records without DOB
 }
@@ -259,12 +261,12 @@ enum AttendanceStatus {
 /**
  * Section - Unified for both School & College
  * School: "Class 10 A"
- * College: "CSE 3rd Year A"
+ * College: "CSE 3rd Year Sem 3 Section A Morning Batch"
  */
 model Section {
   id       Int    @id @default(autoincrement())
   publicId String @unique @db.VarChar(16) // SEC000001
-  name     String // "Class 10 A" or "CSE 3rd Year A"
+  name     String // "Class 10 A" or "CSE Year 2 Sem 3 - Section A - Morning"
 
   institutionId Int
   institution   Institution @relation(fields: [institutionId], references: [id])
@@ -275,9 +277,14 @@ model Section {
   board         String? // "CBSE", "ICSE", "State"
 
   // For colleges
-  department  String? // "CSE", "Mechanical", "Civil"
-  yearOfStudy Int? // 1, 2, 3, 4
-  semester    Int? // 1-8
+  department     String? // "CSE", "Mechanical", "Civil"
+  yearOfStudy    Int? // 1, 2, 3, 4
+  semester       Int? // 1-8
+  collegeSection String? // "A", "B", "C", "D" - for dividing large departments (AICTE: 60 per section)
+  batch          String? // "Morning", "Evening", "Weekend" - for shift-based colleges
+  sectionType    String? // "Theory", "Lab", "Tutorial", "Elective" - for different class types
+  maxCapacity    Int? // Enrollment limit (typically 60 for theory, 20-30 for lab/tutorial)
+  roomNumber     String? // Classroom/Lab assignment
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

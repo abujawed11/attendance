@@ -15,7 +15,8 @@
       "Bash(npx prisma format)",
       "Bash(node scripts/check-duplicate-phones.js:*)",
       "Bash(node tests/generate-test-excel-files.js:*)",
-      "Bash(netstat:*)"
+      "Bash(netstat:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []

@@ -15,6 +15,11 @@ async function createSection(req, res) {
       department,
       yearOfStudy,
       semester,
+      collegeSection,
+      batch,
+      sectionType,
+      maxCapacity,
+      roomNumber,
     } = req.body;
 
     const adminInstitutionId = req.user?.institutionId;
@@ -46,6 +51,11 @@ async function createSection(req, res) {
         department: department || null,
         yearOfStudy: yearOfStudy ? parseInt(yearOfStudy) : null,
         semester: semester ? parseInt(semester) : null,
+        collegeSection: collegeSection || null,
+        batch: batch || null,
+        sectionType: sectionType || null,
+        maxCapacity: maxCapacity ? parseInt(maxCapacity) : null,
+        roomNumber: roomNumber || null,
       },
       include: {
         institution: {
@@ -93,16 +103,29 @@ async function createSection(req, res) {
         enrolledCount = matchingStudents.length;
       }
     } else if (institutionType === 'COLLEGE' && department && yearOfStudy && semester) {
-      // Find all students in this department, year, and semester
+      // Build the where clause for college students
+      const collegeWhere = {
+        department: department,
+        yearOfStudy: parseInt(yearOfStudy),
+        semester: parseInt(semester),
+      };
+
+      // Add section filter if specified
+      if (collegeSection) {
+        collegeWhere.section = collegeSection;
+      }
+
+      // Add batch filter if specified
+      if (batch) {
+        collegeWhere.batch = batch;
+      }
+
+      // Find matching students
       const matchingStudents = await prisma.user.findMany({
         where: {
           institutionId: adminInstitutionId,
           roleType: 'STUDENT',
-          studentCollegeProfile: {
-            department: department,
-            yearOfStudy: parseInt(yearOfStudy),
-            semester: parseInt(semester),
-          },
+          studentCollegeProfile: collegeWhere,
         },
         select: { id: true },
       });
@@ -281,16 +304,29 @@ async function syncSectionEnrollments(req, res) {
         enrolledCount = result.count;
       }
     } else if (institutionType === 'COLLEGE' && section.department && section.yearOfStudy && section.semester) {
-      // Find all students in this department, year, and semester
+      // Build the where clause for college students
+      const collegeWhere = {
+        department: section.department,
+        yearOfStudy: section.yearOfStudy,
+        semester: section.semester,
+      };
+
+      // Add section filter if specified
+      if (section.collegeSection) {
+        collegeWhere.section = section.collegeSection;
+      }
+
+      // Add batch filter if specified
+      if (section.batch) {
+        collegeWhere.batch = section.batch;
+      }
+
+      // Find matching students
       const matchingStudents = await prisma.user.findMany({
         where: {
           institutionId: adminInstitutionId,
           roleType: 'STUDENT',
-          studentCollegeProfile: {
-            department: section.department,
-            yearOfStudy: section.yearOfStudy,
-            semester: section.semester,
-          },
+          studentCollegeProfile: collegeWhere,
         },
         select: { id: true },
       });

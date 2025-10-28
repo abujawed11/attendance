@@ -29,14 +29,27 @@ async function autoEnrollStudent(studentUserId, institutionId, institutionType, 
         });
       }
     } else if (institutionType === 'COLLEGE') {
-      // Find matching sections for college student (department + year + semester)
+      // Build where clause for matching sections
+      const sectionWhere = {
+        institutionId: institutionId,
+        department: studentProfile.department,
+        yearOfStudy: studentProfile.yearOfStudy,
+        semester: studentProfile.semester,
+      };
+
+      // Add section filter if student has section assigned
+      if (studentProfile.section) {
+        sectionWhere.collegeSection = studentProfile.section;
+      }
+
+      // Add batch filter if student has batch assigned
+      if (studentProfile.batch) {
+        sectionWhere.batch = studentProfile.batch;
+      }
+
+      // Find matching sections for college student
       const matchingSections = await prisma.section.findMany({
-        where: {
-          institutionId: institutionId,
-          department: studentProfile.department,
-          yearOfStudy: studentProfile.yearOfStudy,
-          semester: studentProfile.semester,
-        },
+        where: sectionWhere,
         select: { id: true },
       });
 
