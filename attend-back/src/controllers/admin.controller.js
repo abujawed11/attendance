@@ -710,6 +710,286 @@ async function getStats(req, res) {
   }
 }
 
+/**
+ * Update user details (Faculty or Student)
+ * PUT /api/admin/users/:userId
+ */
+async function updateUser(req, res) {
+  try {
+    const { userId } = req.params;
+    const updateData = req.body;
+    const adminInstitutionId = req.user?.institutionId;
+
+    if (!adminInstitutionId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin must be associated with an institution',
+      });
+    }
+
+    // First, get the user to check if they belong to this institution
+    const existingUser = await prisma.user.findUnique({
+      where: { id: parseInt(userId) },
+      include: {
+        facultySchoolProfile: true,
+        facultyCollegeProfile: true,
+        studentSchoolProfile: true,
+        studentCollegeProfile: true,
+      },
+    });
+
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Verify the user belongs to the admin's institution
+    if (existingUser.institutionId !== adminInstitutionId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only edit users from your institution',
+      });
+    }
+
+    // Prepare update data for User table
+    const userUpdateData = {
+      fullName: updateData.fullName,
+    };
+
+    // Check for email uniqueness if being updated
+    if (updateData.email && updateData.email !== existingUser.email) {
+      const emailExists = await prisma.user.findUnique({
+        where: { email: updateData.email },
+      });
+      if (emailExists) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email already exists',
+        });
+      }
+      userUpdateData.email = updateData.email;
+    }
+
+    // Check for phone uniqueness if being updated
+    if (updateData.phone && updateData.phone !== existingUser.phone) {
+      const phoneExists = await prisma.user.findUnique({
+        where: { phone: updateData.phone },
+      });
+      if (phoneExists) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number already exists',
+        });
+      }
+      userUpdateData.phone = updateData.phone;
+    }
+
+    // Determine user type and update appropriate profile
+    if (existingUser.roleType === 'FACULTY') {
+      // Update faculty profile
+      const profileUpdateData = {
+        department: updateData.department,
+        qualification: updateData.qualification,
+      };
+
+      if (existingUser.facultySchoolProfile) {
+        profileUpdateData.employeeId = updateData.employeeId;
+
+        // Check for employee ID uniqueness if being updated
+        if (updateData.employeeId !== existingUser.facultySchoolProfile.employeeId) {
+          const empIdExists = await prisma.facultySchoolProfile.findFirst({
+            where: {
+              employeeId: updateData.employeeId,
+              user: {
+                institutionId: adminInstitutionId,
+              },
+              userId: {
+                not: parseInt(userId), // Exclude current user
+              },
+            },
+          });
+
+          if (empIdExists) {
+            return res.status(400).json({
+              success: false,
+              message: `Employee ID ${updateData.employeeId} already exists`,
+            });
+          }
+        }
+
+        await prisma.user.update({
+          where: { id: parseInt(userId) },
+          data: {
+            ...userUpdateData,
+            facultySchoolProfile: {
+              update: profileUpdateData,
+            },
+          },
+        });
+      } else if (existingUser.facultyCollegeProfile) {
+        profileUpdateData.employeeId = updateData.employeeId;
+        profileUpdateData.designation = updateData.designation;
+
+        // Check for employee ID uniqueness if being updated
+        if (updateData.employeeId !== existingUser.facultyCollegeProfile.employeeId) {
+          const empIdExists = await prisma.facultyCollegeProfile.findFirst({
+            where: {
+              employeeId: updateData.employeeId,
+              user: {
+                institutionId: adminInstitutionId,
+              },
+              userId: {
+                not: parseInt(userId), // Exclude current user
+              },
+            },
+          });
+
+          if (empIdExists) {
+            return res.status(400).json({
+              success: false,
+              message: `Employee ID ${updateData.employeeId} already exists`,
+            });
+          }
+        }
+
+        await prisma.user.update({
+          where: { id: parseInt(userId) },
+          data: {
+            ...userUpdateData,
+            facultyCollegeProfile: {
+              update: profileUpdateData,
+            },
+          },
+        });
+      }
+    } else if (existingUser.roleType === 'STUDENT') {
+      // Update student profile
+      let profileUpdateData = {
+        dob: updateData.dateOfBirth ? new Date(updateData.dateOfBirth) : undefined,
+      };
+
+      if (existingUser.studentSchoolProfile) {
+        // School student
+        profileUpdateData = {
+          ...profileUpdateData,
+          class: updateData.class,
+          section: updateData.section,
+          rollNo: updateData.rollNumber,
+          parentName: updateData.parentName,
+          parentEmail: updateData.parentEmail,
+          parentPhone: updateData.parentPhone,
+        };
+
+        // Check for roll number uniqueness within class/section
+        if (updateData.rollNumber !== existingUser.studentSchoolProfile.rollNo ||
+            updateData.class !== existingUser.studentSchoolProfile.class ||
+            updateData.section !== existingUser.studentSchoolProfile.section) {
+          const rollExists = await prisma.studentSchoolProfile.findFirst({
+            where: {
+              rollNo: updateData.rollNumber,
+              class: updateData.class,
+              section: updateData.section,
+              user: {
+                institutionId: adminInstitutionId,
+              },
+              userId: {
+                not: parseInt(userId), // Exclude current user
+              },
+            },
+          });
+
+          if (rollExists) {
+            return res.status(400).json({
+              success: false,
+              message: `Roll Number ${updateData.rollNumber} already exists in Class ${updateData.class}, Section ${updateData.section}`,
+            });
+          }
+        }
+
+        // Note: Student email is auto-generated, don't allow updates
+        delete userUpdateData.email;
+
+        await prisma.user.update({
+          where: { id: parseInt(userId) },
+          data: {
+            ...userUpdateData,
+            studentSchoolProfile: {
+              update: profileUpdateData,
+            },
+          },
+        });
+      } else if (existingUser.studentCollegeProfile) {
+        // College student
+        profileUpdateData = {
+          ...profileUpdateData,
+          department: updateData.department,
+          yearOfStudy: parseInt(updateData.yearOfStudy),
+          semester: parseInt(updateData.semester),
+          regNo: updateData.rollNumber,
+        };
+
+        // Check for registration number uniqueness within institution
+        if (updateData.rollNumber !== existingUser.studentCollegeProfile.regNo) {
+          const regExists = await prisma.studentCollegeProfile.findFirst({
+            where: {
+              regNo: updateData.rollNumber,
+              user: {
+                institutionId: adminInstitutionId,
+              },
+              userId: {
+                not: parseInt(userId), // Exclude current user
+              },
+            },
+          });
+
+          if (regExists) {
+            return res.status(400).json({
+              success: false,
+              message: `Registration Number ${updateData.rollNumber} already exists`,
+            });
+          }
+        }
+
+        await prisma.user.update({
+          where: { id: parseInt(userId) },
+          data: {
+            ...userUpdateData,
+            studentCollegeProfile: {
+              update: profileUpdateData,
+            },
+          },
+        });
+      }
+    }
+
+    // Fetch updated user
+    const updatedUser = await prisma.user.findUnique({
+      where: { id: parseInt(userId) },
+      include: {
+        facultySchoolProfile: true,
+        facultyCollegeProfile: true,
+        studentSchoolProfile: true,
+        studentCollegeProfile: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'User updated successfully',
+      data: updatedUser,
+    });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update user',
+      error: error.message,
+    });
+  }
+}
+
 module.exports = {
   createSection,
   getSections,
@@ -720,4 +1000,5 @@ module.exports = {
   getFaculty,
   getStudents,
   getStats,
+  updateUser,
 };

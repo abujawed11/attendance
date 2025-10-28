@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import EditUserModal from '../components/EditUserModal';
 
 export default function UsersList() {
   const { user: currentUser } = useAuth();
@@ -19,6 +20,11 @@ export default function UsersList() {
     total: 0,
     totalPages: 0,
   });
+
+  // Edit modal states
+  const [editingUser, setEditingUser] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
 
   // Filter states
   const [search, setSearch] = useState('');
@@ -113,6 +119,90 @@ export default function UsersList() {
   const handleTypeChange = (newType) => {
     setSearchParams({ type: newType });
     handleClearFilters();
+  };
+
+  const handleEditUser = (user) => {
+    setEditingUser(user);
+
+    const profile = type === 'faculty'
+      ? (user.facultySchoolProfile || user.facultyCollegeProfile)
+      : (user.studentSchoolProfile || user.studentCollegeProfile);
+
+    // Prepare form data based on user type
+    const formData = {
+      fullName: user.fullName || '',
+      email: user.email || '',
+      phone: user.phone || '',
+    };
+
+    if (type === 'faculty') {
+      formData.employeeId = profile?.employeeId || '';
+      formData.department = profile?.department || '';
+      formData.designation = profile?.designation || '';
+      formData.qualification = profile?.qualification || '';
+      formData.subject = profile?.subject || '';
+    } else {
+      // Student
+      formData.dateOfBirth = profile?.dob ? new Date(profile.dob).toISOString().split('T')[0] : '';
+      formData.rollNumber = profile?.rollNo || profile?.regNo || '';
+
+      if (institutionType === 'SCHOOL') {
+        formData.class = profile?.class || '';
+        formData.section = profile?.section || '';
+        formData.parentName = profile?.parentName || '';
+        formData.parentEmail = profile?.parentEmail || '';
+        formData.parentPhone = profile?.parentPhone || '';
+      } else if (institutionType === 'COLLEGE') {
+        formData.department = profile?.department || '';
+        formData.yearOfStudy = profile?.yearOfStudy?.toString() || '';
+        formData.semester = profile?.semester?.toString() || '';
+      }
+    }
+
+    setEditFormData(formData);
+  };
+
+  const handleCloseEditModal = () => {
+    setEditingUser(null);
+    setEditFormData({});
+  };
+
+  const handleSaveEdit = async (formData) => {
+    try {
+      setIsSaving(true);
+
+      const response = await fetch(`${API_URL}/admin/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Refresh the user list
+        await fetchUsers();
+        handleCloseEditModal();
+
+        // Show success message
+        const successDiv = document.createElement('div');
+        successDiv.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+        successDiv.textContent = '✓ User updated successfully!';
+        document.body.appendChild(successDiv);
+        setTimeout(() => successDiv.remove(), 3000);
+      } else {
+        // Show error alert
+        alert(`❌ Failed to update user:\n\n${data.message}`);
+      }
+    } catch (error) {
+      console.error('Error updating user:', error);
+      alert('❌ Failed to update user. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const typeLabel = type === 'faculty' ? 'Faculty' : 'Students';
@@ -344,6 +434,9 @@ export default function UsersList() {
                           )}
                         </>
                       )}
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -403,6 +496,14 @@ export default function UsersList() {
                               )}
                             </>
                           )}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <button
+                              onClick={() => handleEditUser(user)}
+                              className="text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                              Edit
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -436,6 +537,19 @@ export default function UsersList() {
           )}
         </div>
       </main>
+
+      {/* Edit User Modal */}
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          type={type}
+          institutionType={institutionType}
+          formData={editFormData}
+          onSave={handleSaveEdit}
+          onClose={handleCloseEditModal}
+          isSaving={isSaving}
+        />
+      )}
     </div>
   );
 }

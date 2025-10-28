@@ -14,6 +14,9 @@ router.get('/stats', adminController.getStats);
 router.get('/faculty', adminController.getFaculty);
 router.get('/students', adminController.getStudents);
 
+// Update user
+router.put('/users/:userId', adminController.updateUser);
+
 // Section management
 router.post('/sections', adminController.createSection);
 router.get('/sections', adminController.getSections);
