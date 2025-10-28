@@ -14,7 +14,8 @@
       "Bash(node scripts/seed-attendance.js)",
       "Bash(npx prisma format)",
       "Bash(node scripts/check-duplicate-phones.js:*)",
-      "Bash(node tests/generate-test-excel-files.js:*)"
+      "Bash(node tests/generate-test-excel-files.js:*)",
+      "Bash(netstat:*)"
     ],
     "deny": [],
     "ask": []

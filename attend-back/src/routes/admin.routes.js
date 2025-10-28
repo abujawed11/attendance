@@ -20,6 +20,7 @@ router.put('/users/:userId', adminController.updateUser);
 // Section management
 router.post('/sections', adminController.createSection);
 router.get('/sections', adminController.getSections);
+router.post('/sections/:sectionId/sync-enrollments', adminController.syncSectionEnrollments);
 router.get('/sections/:sectionId/enrollments', adminController.getSectionEnrollments);
 router.get('/sections/:sectionId/faculty', adminController.getSectionFaculty);
 

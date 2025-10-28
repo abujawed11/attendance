@@ -14,6 +14,7 @@ import AttendanceHistory from "./pages/AttendanceHistory.jsx";
 import StudentAttendance from "./pages/StudentAttendance.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import UsersList from "./pages/UsersList.jsx";
+import SectionManagement from "./pages/SectionManagement.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
@@ -90,6 +91,14 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <UsersList />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/admin/sections",
+        element: (
+          <ProtectedRoute>
+            <SectionManagement />
           </ProtectedRoute>
         ),
       },

@@ -3,6 +3,61 @@ const prisma = require('../config/prisma');
 const { getNextSequenceId } = require('../utils/helpers');
 
 /**
+ * Helper function to auto-enroll student into matching sections
+ */
+async function autoEnrollStudent(studentUserId, institutionId, institutionType, studentProfile) {
+  try {
+    if (institutionType === 'SCHOOL') {
+      // Find matching sections for school student (class + section)
+      const matchingSections = await prisma.section.findMany({
+        where: {
+          institutionId: institutionId,
+          schoolClass: studentProfile.class,
+          schoolSection: studentProfile.section,
+        },
+        select: { id: true },
+      });
+
+      if (matchingSections.length > 0) {
+        // Create enrollments, skip duplicates
+        await prisma.enrollment.createMany({
+          data: matchingSections.map(section => ({
+            studentUserId: studentUserId,
+            sectionId: section.id,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    } else if (institutionType === 'COLLEGE') {
+      // Find matching sections for college student (department + year + semester)
+      const matchingSections = await prisma.section.findMany({
+        where: {
+          institutionId: institutionId,
+          department: studentProfile.department,
+          yearOfStudy: studentProfile.yearOfStudy,
+          semester: studentProfile.semester,
+        },
+        select: { id: true },
+      });
+
+      if (matchingSections.length > 0) {
+        // Create enrollments, skip duplicates
+        await prisma.enrollment.createMany({
+          data: matchingSections.map(section => ({
+            studentUserId: studentUserId,
+            sectionId: section.id,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Auto-enrollment error:', error);
+    // Don't throw - enrollment failure shouldn't block student creation
+  }
+}
+
+/**
  * Field Mapping Configuration
  */
 const FACULTY_FIELD_MAP = {
@@ -1475,6 +1530,12 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
         });
       }
 
+      // Auto-enroll student into matching sections
+      await autoEnrollStudent(existingStudent.user.id, institutionId, institutionType, {
+        class: String(rowData.class).trim(),
+        section: String(rowData.section).trim(),
+      });
+
       results.updated++;
     } else {
       // Create new student with generated email
@@ -1520,6 +1581,12 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
           studentUserId: studentUser.id,
           relation: 'Parent'
         }
+      });
+
+      // Auto-enroll student into matching sections
+      await autoEnrollStudent(studentUser.id, institutionId, institutionType, {
+        class: String(rowData.class).trim(),
+        section: String(rowData.section).trim(),
       });
 
       results.created++;
@@ -1584,6 +1651,14 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
           }
         }
       });
+
+      // Auto-enroll student into matching sections
+      await autoEnrollStudent(existingUser.id, institutionId, institutionType, {
+        department: rowData.department,
+        yearOfStudy: parseInt(rowData.yearOfStudy),
+        semester: parseInt(rowData.semester),
+      });
+
       results.updated++;
     } else if (existingRegNo) {
       // Registration number exists for a different user
@@ -1595,7 +1670,7 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
       // Create new college student
       const publicId = await getNextSequenceId('user');
 
-      await prisma.user.create({
+      const collegeStudent = await prisma.user.create({
         data: {
           publicId,
           email: rowData.email,
@@ -1617,6 +1692,14 @@ async function importStudentRecord(rowData, institutionId, institutionType, inst
           }
         }
       });
+
+      // Auto-enroll student into matching sections
+      await autoEnrollStudent(collegeStudent.id, institutionId, institutionType, {
+        department: rowData.department,
+        yearOfStudy: parseInt(rowData.yearOfStudy),
+        semester: parseInt(rowData.semester),
+      });
+
       results.created++;
     }
   }

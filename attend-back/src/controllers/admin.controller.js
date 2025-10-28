@@ -9,7 +9,6 @@ async function createSection(req, res) {
   try {
     const {
       name,
-      institutionId,
       schoolClass,
       schoolSection,
       board,
@@ -18,22 +17,19 @@ async function createSection(req, res) {
       semester,
     } = req.body;
 
-    if (!name || !institutionId) {
-      return res.status(400).json({
+    const adminInstitutionId = req.user?.institutionId;
+
+    if (!adminInstitutionId) {
+      return res.status(403).json({
         success: false,
-        message: 'Name and institution ID are required',
+        message: 'Admin must be associated with an institution',
       });
     }
 
-    // Verify institution exists
-    const institution = await prisma.institution.findUnique({
-      where: { id: parseInt(institutionId) },
-    });
-
-    if (!institution) {
-      return res.status(404).json({
+    if (!name) {
+      return res.status(400).json({
         success: false,
-        message: 'Institution not found',
+        message: 'Section name is required',
       });
     }
 
@@ -43,7 +39,7 @@ async function createSection(req, res) {
       data: {
         publicId,
         name,
-        institutionId: parseInt(institutionId),
+        institutionId: adminInstitutionId,
         schoolClass: schoolClass || null,
         schoolSection: schoolSection || null,
         board: board || null,
@@ -58,39 +54,75 @@ async function createSection(req, res) {
             type: true,
           },
         },
+        _count: {
+          select: {
+            enrollments: true,
+            facultySections: true,
+          },
+        },
       },
     });
 
-    res.status(201).json({
-      success: true,
-      message: 'Section created successfully',
-      data: section,
-    });
-  } catch (error) {
-    console.error('Create section error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create section',
-      error: error.message,
-    });
-  }
-}
+    // Auto-enroll matching students
+    let enrolledCount = 0;
+    const institutionType = section.institution.type;
 
-/**
- * Get all sections for an institution
- * GET /api/admin/sections?institutionId=1
- */
-async function getSections(req, res) {
-  try {
-    const { institutionId } = req.query;
+    if (institutionType === 'SCHOOL' && schoolClass && schoolSection) {
+      // Find all students in this class and section
+      const matchingStudents = await prisma.user.findMany({
+        where: {
+          institutionId: adminInstitutionId,
+          roleType: 'STUDENT',
+          studentSchoolProfile: {
+            class: schoolClass,
+            section: schoolSection,
+          },
+        },
+        select: { id: true },
+      });
 
-    const where = {};
-    if (institutionId) {
-      where.institutionId = parseInt(institutionId);
+      // Create enrollments for all matching students
+      if (matchingStudents.length > 0) {
+        await prisma.enrollment.createMany({
+          data: matchingStudents.map(student => ({
+            studentUserId: student.id,
+            sectionId: section.id,
+          })),
+          skipDuplicates: true,
+        });
+        enrolledCount = matchingStudents.length;
+      }
+    } else if (institutionType === 'COLLEGE' && department && yearOfStudy && semester) {
+      // Find all students in this department, year, and semester
+      const matchingStudents = await prisma.user.findMany({
+        where: {
+          institutionId: adminInstitutionId,
+          roleType: 'STUDENT',
+          studentCollegeProfile: {
+            department: department,
+            yearOfStudy: parseInt(yearOfStudy),
+            semester: parseInt(semester),
+          },
+        },
+        select: { id: true },
+      });
+
+      // Create enrollments for all matching students
+      if (matchingStudents.length > 0) {
+        await prisma.enrollment.createMany({
+          data: matchingStudents.map(student => ({
+            studentUserId: student.id,
+            sectionId: section.id,
+          })),
+          skipDuplicates: true,
+        });
+        enrolledCount = matchingStudents.length;
+      }
     }
 
-    const sections = await prisma.section.findMany({
-      where,
+    // Fetch updated section with correct enrollment count
+    const updatedSection = await prisma.section.findUnique({
+      where: { id: section.id },
       include: {
         institution: {
           select: {
@@ -105,20 +137,205 @@ async function getSections(req, res) {
           },
         },
       },
-      orderBy: {
-        name: 'asc',
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Section created successfully${enrolledCount > 0 ? ` and ${enrolledCount} student(s) enrolled automatically` : ''}`,
+      data: updatedSection,
+    });
+  } catch (error) {
+    console.error('Create section error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create section',
+      error: error.message,
+    });
+  }
+}
+
+/**
+ * Get all sections for admin's institution
+ * GET /api/admin/sections
+ */
+async function getSections(req, res) {
+  try {
+    const adminInstitutionId = req.user?.institutionId;
+
+    if (!adminInstitutionId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin must be associated with an institution',
+      });
+    }
+
+    const sections = await prisma.section.findMany({
+      where: {
+        institutionId: adminInstitutionId,
       },
+      include: {
+        institution: {
+          select: {
+            name: true,
+            type: true,
+          },
+        },
+        _count: {
+          select: {
+            enrollments: true,
+            facultySections: true,
+          },
+        },
+      },
+      orderBy: [
+        { schoolClass: 'asc' },
+        { schoolSection: 'asc' },
+        { department: 'asc' },
+        { yearOfStudy: 'asc' },
+        { semester: 'asc' },
+      ],
     });
 
     res.status(200).json({
       success: true,
-      data: sections,
+      data: {
+        sections,
+        institutionType: sections[0]?.institution?.type || null,
+      },
     });
   } catch (error) {
     console.error('Get sections error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch sections',
+      error: error.message,
+    });
+  }
+}
+
+/**
+ * Backfill enrollments for a specific section
+ * POST /api/admin/sections/:sectionId/sync-enrollments
+ */
+async function syncSectionEnrollments(req, res) {
+  try {
+    const { sectionId } = req.params;
+    const adminInstitutionId = req.user?.institutionId;
+
+    if (!adminInstitutionId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin must be associated with an institution',
+      });
+    }
+
+    // Get section details
+    const section = await prisma.section.findUnique({
+      where: { id: parseInt(sectionId) },
+      include: {
+        institution: {
+          select: { type: true },
+        },
+      },
+    });
+
+    if (!section) {
+      return res.status(404).json({
+        success: false,
+        message: 'Section not found',
+      });
+    }
+
+    if (section.institutionId !== adminInstitutionId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only sync sections from your institution',
+      });
+    }
+
+    let enrolledCount = 0;
+    const institutionType = section.institution.type;
+
+    if (institutionType === 'SCHOOL' && section.schoolClass && section.schoolSection) {
+      // Find all students in this class and section
+      const matchingStudents = await prisma.user.findMany({
+        where: {
+          institutionId: adminInstitutionId,
+          roleType: 'STUDENT',
+          studentSchoolProfile: {
+            class: section.schoolClass,
+            section: section.schoolSection,
+          },
+        },
+        select: { id: true },
+      });
+
+      if (matchingStudents.length > 0) {
+        const result = await prisma.enrollment.createMany({
+          data: matchingStudents.map(student => ({
+            studentUserId: student.id,
+            sectionId: section.id,
+          })),
+          skipDuplicates: true,
+        });
+        enrolledCount = result.count;
+      }
+    } else if (institutionType === 'COLLEGE' && section.department && section.yearOfStudy && section.semester) {
+      // Find all students in this department, year, and semester
+      const matchingStudents = await prisma.user.findMany({
+        where: {
+          institutionId: adminInstitutionId,
+          roleType: 'STUDENT',
+          studentCollegeProfile: {
+            department: section.department,
+            yearOfStudy: section.yearOfStudy,
+            semester: section.semester,
+          },
+        },
+        select: { id: true },
+      });
+
+      if (matchingStudents.length > 0) {
+        const result = await prisma.enrollment.createMany({
+          data: matchingStudents.map(student => ({
+            studentUserId: student.id,
+            sectionId: section.id,
+          })),
+          skipDuplicates: true,
+        });
+        enrolledCount = result.count;
+      }
+    }
+
+    // Get updated section with correct enrollment count
+    const updatedSection = await prisma.section.findUnique({
+      where: { id: section.id },
+      include: {
+        institution: {
+          select: {
+            name: true,
+            type: true,
+          },
+        },
+        _count: {
+          select: {
+            enrollments: true,
+            facultySections: true,
+          },
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `${enrolledCount} student(s) enrolled successfully`,
+      data: updatedSection,
+    });
+  } catch (error) {
+    console.error('Sync enrollments error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to sync enrollments',
       error: error.message,
     });
   }
@@ -993,6 +1210,7 @@ async function updateUser(req, res) {
 module.exports = {
   createSection,
   getSections,
+  syncSectionEnrollments,
   enrollStudent,
   assignFacultyToSection,
   getSectionEnrollments,

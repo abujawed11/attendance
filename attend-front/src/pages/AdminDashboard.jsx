@@ -225,6 +225,30 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Section Management */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden mb-8">
+          <div className="bg-gradient-to-r from-purple-500 to-pink-600 p-6 text-white">
+            <div className="flex items-center mb-2">
+              <span className="text-4xl mr-3">📚</span>
+              <h3 className="text-2xl font-bold">Section Management</h3>
+            </div>
+            <p className="text-purple-100">
+              Create and manage classes/sections for your institution
+            </p>
+          </div>
+          <div className="p-6">
+            <p className="text-gray-600 mb-6">
+              Create sections (classes for school, departments for college) and assign faculty to teach them.
+            </p>
+            <button
+              onClick={() => navigate('/admin/sections')}
+              className="w-full px-6 py-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors"
+            >
+              📚 Manage Sections
+            </button>
+          </div>
+        </div>
+
         {/* Quick Stats */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <h3 className="text-xl font-semibold mb-4">Quick Stats</h3>
