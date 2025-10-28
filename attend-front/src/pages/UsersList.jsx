@@ -73,7 +73,7 @@ export default function UsersList() {
       const data = await response.json();
 
       if (data.success) {
-        setUsers(data.data[type] || data.data.faculty || data.data.students);
+        setUsers(data.data[type] ?? []);
         setPagination(data.data.pagination);
         // Set institution type from backend response
         if (data.data.institutionType) {
@@ -311,6 +311,9 @@ export default function UsersList() {
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             {institutionType === 'COLLEGE' ? 'Designation' : 'Employee ID'}
                           </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Qualification
+                          </th>
                         </>
                       ) : (
                         <>
@@ -366,6 +369,9 @@ export default function UsersList() {
                                 {institutionType === 'COLLEGE'
                                   ? (profile?.designation || '-')
                                   : (profile?.employeeId || '-')}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {profile?.qualification || '-'}
                               </td>
                             </>
                           ) : (

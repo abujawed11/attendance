@@ -7,6 +7,9 @@ const { authenticate, requireRole } = require('../middleware/auth.middleware');
 router.use(authenticate);
 router.use(requireRole('ADMIN'));
 
+// Dashboard stats
+router.get('/stats', adminController.getStats);
+
 // User listing
 router.get('/faculty', adminController.getFaculty);
 router.get('/students', adminController.getStudents);

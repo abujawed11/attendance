@@ -633,6 +633,83 @@ async function getStudents(req, res) {
   }
 }
 
+/**
+ * Get admin dashboard statistics
+ * GET /api/admin/stats
+ */
+async function getStats(req, res) {
+  try {
+    // Get admin's institution ID from authenticated user
+    const adminInstitutionId = req.user?.institutionId;
+
+    if (!adminInstitutionId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin must be associated with an institution',
+      });
+    }
+
+    // Count total faculty
+    const totalFaculty = await prisma.user.count({
+      where: {
+        roleType: 'FACULTY',
+        institutionId: adminInstitutionId,
+      },
+    });
+
+    // Count total students
+    const totalStudents = await prisma.user.count({
+      where: {
+        roleType: 'STUDENT',
+        institutionId: adminInstitutionId,
+      },
+    });
+
+    // Count total sections
+    const totalSections = await prisma.section.count({
+      where: {
+        institutionId: adminInstitutionId,
+      },
+    });
+
+    // Count today's attendance sessions (sessions created today)
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const todaysSessions = await prisma.attendanceSession.count({
+      where: {
+        section: {
+          institutionId: adminInstitutionId,
+        },
+        date: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalFaculty,
+        totalStudents,
+        totalSections,
+        todaysSessions,
+      },
+    });
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch statistics',
+      error: error.message,
+    });
+  }
+}
+
 module.exports = {
   createSection,
   getSections,
@@ -642,4 +719,5 @@ module.exports = {
   getSectionFaculty,
   getFaculty,
   getStudents,
+  getStats,
 };

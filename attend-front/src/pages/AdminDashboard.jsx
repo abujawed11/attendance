@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ImportWizard from '../components/ImportWizard';
@@ -10,6 +10,40 @@ export default function AdminDashboard() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showAddManualModal, setShowAddManualModal] = useState(false);
   const [uploadType, setUploadType] = useState(null); // 'faculty' or 'student'
+  const [stats, setStats] = useState({
+    totalFaculty: 0,
+    totalStudents: 0,
+    totalSections: 0,
+    todaysSessions: 0,
+  });
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      setLoadingStats(true);
+      const response = await fetch(`${API_URL}/admin/stats`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setStats(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   const handleFeedFaculty = () => {
     setUploadType('faculty');
@@ -194,24 +228,30 @@ export default function AdminDashboard() {
         {/* Quick Stats */}
         <div className="bg-white rounded-lg shadow p-6 mb-8">
           <h3 className="text-xl font-semibold mb-4">Quick Stats</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-3xl font-bold text-blue-600">--</div>
-              <div className="text-sm text-gray-600">Total Faculty</div>
+          {loadingStats ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
             </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-3xl font-bold text-green-600">--</div>
-              <div className="text-sm text-gray-600">Total Students</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-3xl font-bold text-blue-600">{stats.totalFaculty}</div>
+                <div className="text-sm text-gray-600">Total Faculty</div>
+              </div>
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="text-3xl font-bold text-green-600">{stats.totalStudents}</div>
+                <div className="text-sm text-gray-600">Total Students</div>
+              </div>
+              <div className="text-center p-4 bg-purple-50 rounded-lg">
+                <div className="text-3xl font-bold text-purple-600">{stats.totalSections}</div>
+                <div className="text-sm text-gray-600">Total Sections</div>
+              </div>
+              <div className="text-center p-4 bg-orange-50 rounded-lg">
+                <div className="text-3xl font-bold text-orange-600">{stats.todaysSessions}</div>
+                <div className="text-sm text-gray-600">Today's Sessions</div>
+              </div>
             </div>
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <div className="text-3xl font-bold text-purple-600">--</div>
-              <div className="text-sm text-gray-600">Total Sections</div>
-            </div>
-            <div className="text-center p-4 bg-orange-50 rounded-lg">
-              <div className="text-3xl font-bold text-orange-600">--</div>
-              <div className="text-sm text-gray-600">Active Sessions</div>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Instructions */}
@@ -237,9 +277,12 @@ export default function AdminDashboard() {
       {showUploadModal && (
         <ImportWizard
           type={uploadType}
-          onClose={() => {
+          onClose={(shouldRefresh) => {
             setShowUploadModal(false);
             setUploadType(null);
+            if (shouldRefresh) {
+              fetchStats(); // Refresh stats after import
+            }
           }}
         />
       )}
@@ -253,8 +296,7 @@ export default function AdminDashboard() {
             setShowAddManualModal(false);
             setUploadType(null);
             if (shouldRefresh) {
-              // Optionally refresh data here
-              console.log('Users added successfully');
+              fetchStats(); // Refresh stats after adding users
             }
           }}
         />
