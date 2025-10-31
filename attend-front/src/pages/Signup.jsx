@@ -389,6 +389,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { API_ENDPOINTS } from "../config/api";
 import { ALL_SCHOOLS, COLLEGES, ALL_INSTITUTIONS } from "../data/institutions";
+import LightRays from "../components/LightRays";
 
 /* -------------------- enums (match Prisma) -------------------- */
 const RoleType = {
@@ -921,8 +922,25 @@ export default function Signup() {
   // OTP Verification Step
   if (step === 2) {
     return (
-      <div className="min-h-screen grid place-items-center bg-gray-50 px-4 py-8">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">
+      <div className="min-h-screen grid place-items-center bg-gray-50 px-4 py-8 relative overflow-hidden">
+        {/* Light Rays Background Effect */}
+        <div className="fixed inset-0 z-0">
+          <LightRays
+            raysOrigin="top-center"
+            raysColor="#6366f1"
+            raysSpeed={0.8}
+            lightSpread={1.2}
+            rayLength={2}
+            pulsating={true}
+            fadeDistance={1.2}
+            saturation={0.8}
+            followMouse={true}
+            mouseInfluence={0.15}
+            noiseAmount={0.05}
+            distortion={0.1}
+          />
+        </div>
+        <div className="w-full max-w-md bg-white rounded-2xl shadow p-6 relative z-10">
           <h1 className="text-2xl font-semibold text-center mb-2">Verify Your Email</h1>
           <p className="text-sm text-gray-500 text-center mb-6">
             We've sent a 6-digit OTP to <strong>{formData.email}</strong>
@@ -981,8 +999,25 @@ export default function Signup() {
 
   // Signup Form (Step 1)
   return (
-    <div className="min-h-screen grid place-items-center bg-gray-50 px-4 py-8">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow p-6">
+    <div className="min-h-screen grid place-items-center bg-gray-50 px-4 py-8 relative overflow-hidden">
+      {/* Light Rays Background Effect */}
+      <div className="fixed inset-0 z-0">
+        <LightRays
+          raysOrigin="top-center"
+          raysColor="#6366f1"
+          raysSpeed={0.8}
+          lightSpread={1.2}
+          rayLength={2}
+          pulsating={true}
+          fadeDistance={1.2}
+          saturation={0.8}
+          followMouse={true}
+          mouseInfluence={0.15}
+          noiseAmount={0.05}
+          distortion={0.1}
+        />
+      </div>
+      <div className="w-full max-w-2xl bg-white rounded-2xl shadow p-6 relative z-10">
         <h1 className="text-2xl font-semibold text-center mb-2">Create your account</h1>
         <p className="text-sm text-gray-500 text-center mb-6">Sign up with role-specific details</p>
 
