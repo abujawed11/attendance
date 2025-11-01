@@ -1,3 +1,21 @@
+-- Create the DB (feel free to rename attendance_db)
+CREATE DATABASE IF NOT EXISTS attendance_db
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+-- Create a least-privilege user for local development
+CREATE USER IF NOT EXISTS 'attend_user'@'localhost'
+  IDENTIFIED BY 'Str0ng!Passw0rd#2025';
+
+-- Grant permissions only on this database
+GRANT ALL PRIVILEGES ON attendance_db.* TO 'attend_user'@'localhost';
+
+-- Apply changes
+FLUSH PRIVILEGES;
+
+
+
+
 # Attendance System - Backend API Documentation
 
 ## Setup Instructions
